@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'package:cashier/class/productclass.dart';
 
 class Productbottomsheet extends StatefulWidget {

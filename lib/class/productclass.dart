@@ -1,33 +1,32 @@
-
-final List<Productclass> fruits = [
-  Productclass(name: 'Apple', price: 10.0, stock: 5),
-  Productclass(name: 'Banana', price: 5.0, stock: 10),
-  Productclass(name: 'Banene1', price: 3.0, stock: 8),
-  Productclass(name: 'Mango', price: 15.0, stock: 2),
-];
-
-
-
-
-
-
 class Productclass {
+  int? id;  // This will be nullable since it's auto-incremented in SQLite
   final String name;
   final double price;
   final int stock;
 
   Productclass({
+    this.id,  // Allow id to be null so SQLite can auto-increment it
     required this.name,
     required this.price,
     required this.stock,
   });
 
-  // Add this factory constructor to convert JSON into Productclass
+  // Convert a Productclass into a Map. The keys must match the column names in your database.
+  Map<String, dynamic> toMap() {
+    return {
+      'name': name,
+      'price': price,
+      'stock': stock,
+    };
+  }
 
-
-  // Optional: convert Productclass to JSON if needed later
-
+  // Convert a Map into a Productclass. This is used when retrieving a product from the database.
+  factory Productclass.fromMap(Map<String, dynamic> map) {
+    return Productclass(
+      id: map['id'],  // The id is fetched from the database (auto-incremented)
+      name: map['name'],
+      price: map['price'],
+      stock: map['stock'],
+    );
+  }
 }
-
-
-

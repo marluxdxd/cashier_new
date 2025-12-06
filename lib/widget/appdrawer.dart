@@ -1,4 +1,5 @@
 import 'package:cashier/view/home.dart';
+import 'package:cashier/widget/addproduct.dart';
 import 'package:flutter/material.dart';
 
 class Appdrawer extends StatefulWidget {
@@ -87,9 +88,13 @@ class _AppdrawerState extends State<Appdrawer> {
           ListTile(
             leading: Icon(Icons.inventory_rounded),
             title: Text("Add Productss"),
-            onTap: () {
-              Navigator.pop(context);
-            },
+          onTap: () {
+  Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => AddproductPage()),
+  );
+},
+
           ),
           ListTile(
             leading: Icon(Icons.list_alt),
