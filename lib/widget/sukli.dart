@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 
 class Sukli extends StatelessWidget {
   final double change;
+  final String timestamp;
+  
 
-  const Sukli({super.key, required this.change});
+  const Sukli({super.key, required this.change, required this.timestamp});
+
 
   @override
   Widget build(BuildContext context) {

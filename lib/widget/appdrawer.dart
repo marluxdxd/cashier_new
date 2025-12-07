@@ -91,7 +91,7 @@ class _AppdrawerState extends State<Appdrawer> {
           onTap: () {
   Navigator.push(
     context,
-    MaterialPageRoute(builder: (_) => AddproductPage()),
+    MaterialPageRoute(builder: (_) => AddProductPage()),
   );
 },
 

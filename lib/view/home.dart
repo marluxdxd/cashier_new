@@ -1,3 +1,4 @@
+import 'package:cashier/services/transaction_service.dart';
 import 'package:flutter/material.dart';
 import 'package:cashier/class/productclass.dart';
 import 'package:cashier/class/posrowclass.dart';
@@ -5,6 +6,7 @@ import 'package:cashier/widget/productbottomsheet.dart';
 import 'package:cashier/widget/qtybottomsheet.dart';
 import 'package:cashier/widget/sukli.dart';
 import 'package:cashier/widget/appdrawer.dart';
+import 'package:intl/intl.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -16,7 +18,8 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   List<POSRow> rows = [POSRow()]; // Start with one empty row
   TextEditingController customerCashController = TextEditingController();
-
+  final TransactionService transactionService = TransactionService();
+  
   //-----------------Add Empty Row---------------------------------
   void _addEmptyRow() {
     setState(() {
@@ -44,11 +47,12 @@ class _HomeState extends State<Home> {
             flex: 6,
             child: InkWell(
               onTap: () async {
-                final selectedProduct = await showModalBottomSheet<Productclass>(
-                  context: context,
-                  isScrollControlled: true,
-                  builder: (_) => Productbottomsheet(),
-                );
+                final selectedProduct =
+                    await showModalBottomSheet<Productclass>(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (_) => Productbottomsheet(),
+                    );
                 if (selectedProduct != null) {
                   setState(() {
                     row.product = selectedProduct;
@@ -148,7 +152,7 @@ class _HomeState extends State<Home> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // CART ROWS
+            // PRODUCT+QTY ROWS
             Expanded(
               child: ListView.builder(
                 itemCount: rows.length,
@@ -201,20 +205,44 @@ class _HomeState extends State<Home> {
                 labelText: "Customer Cash",
                 border: OutlineInputBorder(),
               ),
-              onSubmitted: (_) {
+              onSubmitted: (_) async {
                 double cash = double.tryParse(customerCashController.text) ?? 0;
 
-                if (cash < totalBill) {
+                if (!transactionService.isCashSufficient(totalBill, cash)) {
                   print("Cash is not enough yet.");
                   return;
                 }
 
-                double change = cash - totalBill;
-
-                showDialog(
-                  context: context,
-                  builder: (_) => Sukli(change: change),
+                double change = transactionService.calculateChange(
+                  totalBill,
+                  cash,
                 );
+                String timestamp = transactionService.getCurrentTimestamp();
+
+                try {
+                  // ✅ Save transaction to Supabase
+                  int transactionId = await transactionService.saveTransaction(
+                    total: totalBill,
+                    cash: cash,
+                    change: change,
+                  );
+
+                  print("Transaction saved! ID: $transactionId at $timestamp");
+
+                  // Show change & timestamp dialog
+                  showDialog(
+                    context: context,
+                    builder: (_) => Sukli(change: change, timestamp: timestamp),
+                  );
+
+                  // Clear input
+                  customerCashController.clear();
+                } catch (e) {
+                  print("Failed to save transaction: $e");
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Failed to save transaction")),
+                  );
+                }
               },
             ),
           ],

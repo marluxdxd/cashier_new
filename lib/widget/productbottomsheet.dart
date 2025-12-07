@@ -12,12 +12,29 @@ class Productbottomsheet extends StatefulWidget {
 class _ProductbottomsheetState extends State<Productbottomsheet> {
   TextEditingController searchController = TextEditingController();
 
-  List<Productclass> products = [];        // Full list from Supabase
+  List<Productclass> products = []; // Full list from Supabase
   List<Productclass> matchedProducts = []; // Filtered list for UI
   String input = "";
+  //-------fetch products supabase--------------------
+  @override
+  void initState() {
+    super.initState();
+    fetchProductsFromSupabase();
+  }
 
+  void fetchProductsFromSupabase() async {
+    try {
+      final fetchedProducts = await Productclass.fetchProducts();
+      setState(() {
+        products = fetchedProducts;
+        matchedProducts = fetchedProducts; // initially show all
+      });
+    } catch (e) {
+      print("Error fetching products: $e");
+    }
+  }
 
-  // Filter products by search
+  //--------------- Filter products by search-----------------------------------
   void filterProducts(String value) {
     setState(() {
       input = value;
@@ -75,7 +92,8 @@ class _ProductbottomsheetState extends State<Productbottomsheet> {
                           return ListTile(
                             title: Text(product.name),
                             subtitle: Text(
-                                'Price: ₱${product.price} • Stock: ${product.stock}'),
+                              'Price: ₱${product.price} • Stock: ${product.stock}',
+                            ),
                             onTap: () {
                               FocusScope.of(context).unfocus();
                               Navigator.pop(context, product);
