@@ -1,26 +1,25 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class Productclass {
-  final int? id;  
+  final int id;
   final String name;
   final double price;
   final int stock;
+  final bool isPromo; // add this
+  final int otherQty; // add this
 
   Productclass({
-    this.id,
+    required this.id,
     required this.name,
     required this.price,
     required this.stock,
+    this.isPromo = false, // default false
+    this.otherQty = 0, // default 0
   });
 
   // Convert to Map for Supabase insert/update
   Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'name': name,
-      'price': price,
-      'stock': stock,
-    };
+    return {'id': id, 'name': name, 'price': price, 'stock': stock, 'is_promo': isPromo, 'other_qty': otherQty};
   }
 
   // Convert Supabase row → Productclass
@@ -28,19 +27,21 @@ class Productclass {
     return Productclass(
       id: map['id'],
       name: map['name'],
-      price: map['price'] is int ? (map['price'] as int).toDouble() : map['price'],
+      price: map['price'] is int
+          ? (map['price'] as int).toDouble()
+          : map['price'],
       stock: map['stock'],
+      isPromo: map['is_promo'] ?? false,
+      otherQty: map['other_qty'] ?? 0,
     );
   }
 
-
   // Fetch all products from Supabase
   static Future<List<Productclass>> fetchProducts() async {
-    final data = await Supabase.instance.client
-        .from('products')
-        .select();
+    final data = await Supabase.instance.client.from('products').select();
 
-    return (data as List<dynamic>).map((e) => Productclass.fromMap(e as Map<String, dynamic>)).toList();
+    return (data as List<dynamic>)
+        .map((e) => Productclass.fromMap(e as Map<String, dynamic>))
+        .toList();
   }
-
 }

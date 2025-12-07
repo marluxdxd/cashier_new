@@ -16,10 +16,11 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
+  //----------------------Controller---------------------------
   List<POSRow> rows = [POSRow()]; // Start with one empty row
   TextEditingController customerCashController = TextEditingController();
   final TransactionService transactionService = TransactionService();
-  
+
   //-----------------Add Empty Row---------------------------------
   void _addEmptyRow() {
     setState(() {
@@ -28,16 +29,34 @@ class _HomeState extends State<Home> {
   }
 
   //-----------------Compute Total Bill---------------------------
-  double get totalBill {
-    double total = 0;
-    for (var row in rows) {
-      if (row.product != null) total += row.product!.price * row.qty;
+double get totalBill {
+  double total = 0;
+  for (var row in rows) {
+    if (row.product != null) {
+      if (row.isPromo) {
+        // Promo product → total = product price only
+        total += row.product!.price;
+      } else {
+        // Normal product → total = price * qty
+        total += row.product!.price * row.qty;
+      }
     }
-    return total;
   }
+  return total;
+}
+
 
   //-----------------Build Each POS Row---------------------------
   Widget buildRow(POSRow row, int index) {
+    double displayPrice = 0;
+    if (row.product != null) {
+      displayPrice = row.isPromo
+          ? row.product!.price
+          : row.product!.price * row.qty;
+    } else {
+      displayPrice = 0;
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -56,10 +75,22 @@ class _HomeState extends State<Home> {
                 if (selectedProduct != null) {
                   setState(() {
                     row.product = selectedProduct;
+
+                    // Kung promo product, set isPromo true and fix quantity
+                    if (selectedProduct.isPromo) {
+                      // depende kung Productclass naay isPromo
+                      row.isPromo = true;
+                      row.otherQty =
+                          selectedProduct.otherQty; // fix ang quantity
+                    } else {
+                      row.isPromo = false;
+                    }
+
                     if (row == rows.last) _addEmptyRow();
                   });
                 }
               },
+
               child: Container(
                 padding: EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -77,25 +108,35 @@ class _HomeState extends State<Home> {
           Expanded(
             flex: 2,
             child: InkWell(
-              onTap: () async {
-                final qty = await showModalBottomSheet<int>(
-                  context: context,
-                  builder: (_) => Qtybottomsheet(),
-                );
-                if (qty != null) {
-                  setState(() {
-                    row.qty = qty;
-                    if (row == rows.last) _addEmptyRow();
-                  });
-                }
-              },
+              onTap: row.isPromo
+                  ? null // fixed quantity
+                  : () async {
+                      final qty = await showModalBottomSheet<int>(
+                        context: context,
+                        builder: (_) => Qtybottomsheet(),
+                      );
+                      if (qty != null) {
+                        setState(() {
+                          row.qty = qty;
+                          if (row == rows.last) _addEmptyRow();
+                        });
+                      }
+                    },
+
               child: Container(
                 padding: EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey),
                   borderRadius: BorderRadius.circular(4),
+                  color: row.isPromo ? Colors.grey[200] : Colors.white,
                 ),
-                child: Text(row.qty == 0 ? "Qty" : row.qty.toString()),
+                child: Text(
+                  row.isPromo
+                      ? row.otherQty
+                            .toString() // fixed quantity, dili ma-edit
+                      : (row.qty == 0 ? "Qty" : row.qty.toString()),
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
           ),
@@ -103,10 +144,9 @@ class _HomeState extends State<Home> {
           SizedBox(width: 8),
 
           // Row total
+          // Row total with promo logic
           Text(
-            row.product != null
-                ? "₱${(row.product!.price * row.qty).toStringAsFixed(2)}"
-                : "₱0.00",
+            "₱${displayPrice.toStringAsFixed(2)}",
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
 
@@ -220,7 +260,7 @@ class _HomeState extends State<Home> {
                 String timestamp = transactionService.getCurrentTimestamp();
 
                 try {
-                  // ✅ Save transaction to Supabase
+                  // 1️⃣ Save main transaction
                   int transactionId = await transactionService.saveTransaction(
                     total: totalBill,
                     cash: cash,
@@ -229,18 +269,45 @@ class _HomeState extends State<Home> {
 
                   print("Transaction saved! ID: $transactionId at $timestamp");
 
-                  // Show change & timestamp dialog
+                  // 2️⃣ Save each purchased item
+                  for (var row in rows) {
+                    if (row.product != null) {
+                      int effectiveQty = row.isPromo ? row.otherQty : row.qty;
+
+                      if (effectiveQty > 0) {
+                        await transactionService.saveTransactionItem(
+                          transactionId: transactionId,
+                          product: row.product!,
+                          qty: effectiveQty,
+                          isPromo: row.isPromo,
+                          otherQty: row.otherQty,
+                        );
+
+                        await transactionService.updateStock(
+                          productId: row.product!.id,
+                          newStock: row.product!.stock - effectiveQty,
+                        );
+                      }
+                    }
+                  }
+
+                  print("All transaction items saved!");
+
+                  // 3️⃣ Show dialog
                   showDialog(
                     context: context,
                     builder: (_) => Sukli(change: change, timestamp: timestamp),
                   );
 
-                  // Clear input
+                  // 4️⃣ Clear input + rows
                   customerCashController.clear();
+                  setState(() {
+                    rows = [POSRow()];
+                  });
                 } catch (e) {
-                  print("Failed to save transaction: $e");
+                  print("Error saving transaction: $e");
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Failed to save transaction")),
+                    SnackBar(content: Text("Failed to save transaction.")),
                   );
                 }
               },
