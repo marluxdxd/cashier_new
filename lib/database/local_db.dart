@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class LocalDatabase {
   static final LocalDatabase _instance = LocalDatabase._internal();
@@ -7,6 +10,159 @@ class LocalDatabase {
   LocalDatabase._internal();
 
   Database? _database;
+
+  // Get transaction items for a specific transaction
+Future<List<Map<String, dynamic>>> getTransactionItemsForTransaction(int transactionId) async {
+  final db = await database;
+  return await db.query(
+    'transaction_items',
+    where: 'transaction_id = ?',
+    whereArgs: [transactionId],
+  );
+}
+
+Future<void> deleteItemsByTransaction(int transactionId) async {
+  final db = await database;
+  await db.delete(
+    'transaction_items',
+    where: 'transaction_id = ?',
+    whereArgs: [transactionId],
+  );
+}
+
+Future<List<Map<String, dynamic>>> getTransactionsWithItemsFiltered(
+    String startDate, String endDate) async {
+
+  final db = await database;
+
+  return await db.rawQuery('''
+    SELECT 
+      t.id AS transaction_id,
+      t.cash,
+      t.change,
+      t.created_at,
+      ti.id AS item_id,
+      ti.product_id,
+      ti.product_name,
+      ti.qty,
+      ti.price,
+      ti.is_promo,
+      ti.other_qty
+    FROM transactions t
+    LEFT JOIN transaction_items ti
+    ON t.id = ti.transaction_id
+    WHERE date(t.created_at) BETWEEN date(?) AND date(?)
+    ORDER BY t.created_at DESC
+  ''', [startDate, endDate]);
+}
+
+
+
+
+Future<List<Map<String, dynamic>>> getTransactionsWithItems() async {
+  final db = await database;
+  return await db.rawQuery('''
+    SELECT 
+      t.id AS transaction_id,
+      t.cash,
+      t.change,
+      t.created_at,
+      ti.id AS item_id,
+      ti.product_id,
+      ti.product_name,
+      ti.qty,
+      ti.price,
+      ti.is_promo,
+      ti.other_qty
+    FROM transactions t
+    LEFT JOIN transaction_items ti
+    ON t.id = ti.transaction_id
+    ORDER BY t.created_at DESC
+  ''');
+}
+
+// Get transaction items with product info
+Future<List<Map<String, dynamic>>> getTransactionItemsWithProduct(int transactionId) async {
+  final db = await database;
+  return await db.rawQuery('''
+    SELECT ti.id as item_id, ti.transaction_id, ti.qty, ti.price, ti.is_promo, 
+           p.name as product_name, t.total, t.cash, t.change, t.created_at
+    FROM transaction_items ti
+    INNER JOIN transactions t ON t.id = ti.transaction_id
+    INNER JOIN products p ON p.id = ti.product_id
+    WHERE ti.transaction_id = ?
+    ORDER BY ti.id ASC
+  ''', [transactionId]);
+}
+//BAG-O----------------------------------------------------------------
+Future<List<Map<String, dynamic>>> getUnsyncedTransactions() async {
+  final db = await database;
+  return await db.query('transactions', where: 'is_synced = ?', whereArgs: [0]);
+}
+
+Future<List<Map<String, dynamic>>> getItemsForTransaction(int trxId) async {
+  final db = await database;
+  return await db.query(
+    'transaction_items',
+    where: 'transaction_id = ? AND is_synced = ?',
+    whereArgs: [trxId, 0],
+  );
+}
+
+Future<void> markTransactionSynced(int id) async {
+  final db = await database;
+  await db.update(
+    'transactions',
+    {'is_synced': 1},
+    where: 'id = ?',
+    whereArgs: [id],
+  );
+}
+
+Future<void> markItemSynced(int itemId) async {
+  final db = await database;
+  await db.update(
+    'transaction_items',
+    {'is_synced': 1},
+    where: 'id = ?',
+    whereArgs: [itemId],
+  );
+}
+
+
+//BAG-O-------------------------------------------------------------
+
+Future<void> printAllTransactions() async {
+  final db = await database;
+  final List<Map<String, dynamic>> transactions = await db.query('transactions');
+  
+  if (transactions.isEmpty) {
+    print("Walay transactions sa local DB");
+  } else {
+    print("Transactions in local DB:");
+    for (var t in transactions) {
+      print(t);
+    }
+  }
+}
+
+Future<void> backupDatabaseToDownloads() async {
+  if (await Permission.storage.request().isGranted) {
+    final dbPath = await getDatabasesPath();
+    final dbFile = File(join(dbPath, 'app.db'));
+
+    final downloadsDir = Directory('/storage/emulated/0/Download'); // Android downloads
+    final backupFile = File(join(downloadsDir.path, 'app_backup.db'));
+
+    await dbFile.copy(backupFile.path);
+    print("Backup saved to Downloads: ${backupFile.path}");
+  } else {
+    print("Storage permission denied");
+  }
+}
+
+
+
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -30,7 +186,8 @@ class LocalDatabase {
             price REAL NOT NULL,
             stock INTEGER NOT NULL,
             is_promo INTEGER DEFAULT 0,
-            other_qty INTEGER
+            other_qty INTEGER,
+            is_synced INTEGER DEFAULT 0
           )
         ''');
 
@@ -41,7 +198,8 @@ class LocalDatabase {
             total REAL NOT NULL,
             cash REAL NOT NULL,
             change REAL NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            is_synced INTEGER DEFAULT 0
           )
         ''');
 
@@ -56,8 +214,11 @@ class LocalDatabase {
             price REAL NOT NULL,
             is_promo INTEGER DEFAULT 0,
             other_qty INTEGER,
+            is_synced INTEGER DEFAULT 0,
+            supabase_id INTEGER, 
             FOREIGN KEY(transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
             FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
+            
           )
         ''');
       },
@@ -185,4 +346,6 @@ class LocalDatabase {
     final db = await database;
     return await db.delete('transaction_items', where: 'id = ?', whereArgs: [id]);
   }
+
+
 }

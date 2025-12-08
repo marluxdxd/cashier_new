@@ -1,23 +1,155 @@
 import 'dart:io';
-
 import 'package:cashier/class/productclass.dart';
 import 'package:cashier/database/local_db.dart';
-
 import 'package:cashier/database/supabase.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 class ProductService {
   final supabase = SupabaseConfig.supabase;
   final localDb = LocalDatabase();
+  
 
   Future<bool> isOnline() async {
     var connectivity = await Connectivity().checkConnectivity();
     return connectivity != ConnectivityResult.none;
   }
 
-  //LOCAL ------
-  // Check if device is online
-  Future<bool> isOnline1() async {
+  
+Future<List<Productclass>> getAllProducts() async {
+    final online = await isOnline();
+
+    if (online) {
+      // Fetch from Supabase
+      final data = await supabase.from('products').select();
+
+      // Optional: update local DB
+      for (var p in data) {
+        await localDb.insertProduct(
+          id: p['id'] as int,
+          name: p['name'] as String,
+          price: (p['price'] as num).toDouble(),
+          stock: p['stock'] as int,
+          isPromo: p['is_promo'] as bool? ?? false,
+          otherQty: p['other_qty'] as int? ?? 0,
+        );
+      }
+
+      return (data as List<dynamic>)
+          .map((e) => Productclass.fromMap(e as Map<String, dynamic>))
+          .toList();
+    } else {
+      // Fetch from local DB
+      final localData = await localDb.getProducts();
+      return localData
+          .map((e) => Productclass(
+                id: e['id'],
+                name: e['name'],
+                price: e['price'],
+                stock: e['stock'],
+                isPromo: e['is_promo'] == 1,
+                otherQty: e['other_qty'] ?? 0,
+              ))
+          .toList();
+    }
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+// Get all products from local DB
+Future<List<Map<String, dynamic>>> getLocalProducts() async {
+  final db = await localDb.database;
+  return await db.query('products');
+}
+//-----------------------LOCAL---------------------------------//
+
+Future<int> insertProductOffline({
+    required String name,
+    required double price,
+    required int stock,
+    bool isPromo = false,
+    int otherQty = 0,
+  }) async {
+    final db = await localDb.database;
+    return await db.insert(
+      'products',
+      {
+        'name': name,
+        'price': price,
+        'stock': stock,
+        'is_promo': isPromo ? 1 : 0,
+        'other_qty': otherQty,
+        'is_synced': 0, // mark as not synced
+      },
+    );
+  }
+
+  // ------------------- SYNC UNSYNCED PRODUCTS -------------------
+  Future<void> syncOfflineProducts() async {
+    final online = await isOnline1();
+    if (!online) {
+      print("Offline: dili maka-sync sa Supabase");
+      return;
+    }
+
+    final unsynced = await localDb.database.then(
+      (db) => db.query('products', where: 'is_synced = ?', whereArgs: [0]),
+    );
+
+   for (var p in unsynced) {
+  try {
+final existing = await supabase
+    .from('products')
+    .select('id')
+    .eq('name', p['name'] as String)
+    .maybeSingle();
+
+if (existing != null) {
+  // Update
+  await supabase.from('products').update({
+    'price': p['price'],
+    'stock': p['stock'],
+    'is_promo': p['is_promo'] == 1,
+    'other_qty': p['other_qty'],
+  }).eq('id', existing['id']);
+} else {
+  // Insert
+  await supabase.from('products').insert({
+    'name': p['name'],
+    'price': p['price'],
+    'stock': p['stock'],
+    'is_promo': p['is_promo'] == 1,
+    'other_qty': p['other_qty'],
+  });
+}
+
+    // Mark as synced locally
+    await localDb.database.then((db) => db.update(
+          'products',
+          {'is_synced': 1},
+          where: 'id = ?',
+          whereArgs: [p['id']],
+        ));
+  } catch (e) {
+    print("Failed to sync product ${p['name']}: $e");
+  }
+}
+
+
+    print("Offline products synced to Supabase");
+  }
+  
+  Future<bool> isOnline1() async {  // Check if device is online
     try {
       final result = await InternetAddress.lookup('example.com');
       return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
@@ -27,59 +159,60 @@ class ProductService {
   }
 
   // Fetch all products from Supabase and save locally
-  Future<void> syncProducts() async {
-    final online = await isOnline1();
-    if (!online) {
-      print("Offline: dili maka-sync sa Supabase");
-      return;
-    }
-
-    try {
-      // 1️⃣ Fetch all products from Supabase
-      final supaProducts = await supabase.from('products').select();
-      print("Supabase fetched: $supaProducts");
-
-      if (supaProducts.isEmpty) {
-        print("Walay data sa Supabase");
-        return;
-      }
-
-      // 2️⃣ Optional: Clear existing local DB
-      final localProducts = await localDb.getProducts();
-      for (var p in localProducts) {
-        await localDb.deleteProduct(p['id'] as int);
-      }
-
-      // 3️⃣ Insert all products into local SQLite
-      for (var p in supaProducts) {
-        try {
-          await localDb.insertProduct(
-            id: p['id'] as int,
-            name: p['name'] as String,
-            price: (p['price'] as num).toDouble(),
-            stock: p['stock'] as int,
-            isPromo: p['is_promo'] as bool? ?? false,
-            otherQty: p['other_qty'] as int? ?? 0,
-          );
-        } catch (e) {
-          print("Insert error: $e for product $p");
-        }
-      }
-
-      // 4️⃣ Verify local DB
-      final savedProducts = await localDb.getProducts();
-      if (savedProducts.isNotEmpty) {
-        print("Sync successful! Na-save sa local DB:");
-        for (var p in savedProducts) {
-          print(p['name']);
-        }
-      } else {
-        print("Sync failed: Wala na-save sa local DB");
-      }
-    } catch (e) {
-      print("Error during sync: $e");
-    }
+ Future<void> syncAllTables() async {
+  final online = await isOnline1();
+  if (!online) {
+    print("Offline: dili maka-sync sa Supabase");
+    return;
   }
+
+  try {
+    // ----------------- PRODUCTS -----------------
+    final supaProducts = await supabase.from('products').select();
+    for (var p in supaProducts) {
+      await localDb.insertProduct(
+        id: p['id'] as int,
+        name: p['name'] as String,
+        price: (p['price'] as num).toDouble(),
+        stock: p['stock'] as int,
+        isPromo: p['is_promo'] as bool? ?? false,
+        otherQty: p['other_qty'] as int? ?? 0,
+      );
+    }
+
+    // ----------------- TRANSACTIONS -----------------
+    final supaTransactions = await supabase.from('transactions').select();
+    for (var t in supaTransactions) {
+      await localDb.insertTransaction(
+        id: t['id'] as int,
+        total: (t['total'] as num).toDouble(),
+        cash: (t['cash'] as num).toDouble(),
+        change: (t['change'] as num).toDouble(),
+        createdAt: t['created_at'] as String?,
+      );
+    }
+
+    // ----------------- TRANSACTION ITEMS -----------------
+    final supaItems = await supabase.from('transaction_items').select();
+    for (var item in supaItems) {
+      await localDb.insertTransactionItem(
+        id: item['id'] as int,
+        transactionId: item['transaction_id'] as int,
+        productId: item['product_id'] as int,
+        productName: item['product_name'] as String,
+        qty: item['qty'] as int,
+        price: (item['price'] as num).toDouble(),
+        isPromo: item['is_promo'] as bool? ?? false,
+        otherQty: item['other_qty'] as int? ?? 0,
+      );
+    }
+
+    print("Sync all tables successful!");
+  } catch (e) {
+    print("Error during sync: $e");
+  }
+}
+
 
   // Kuhaon tanan products gikan sa 'products' table
   Future<List<Productclass>> fetchProducts() async {
@@ -126,4 +259,7 @@ class ProductService {
   Future<void> deleteProduct(int id) async {
     await supabase.from('products').delete().eq('id', id);
   }
+
+  Future<void> syncOfflineTransactions() async {}
 }
+

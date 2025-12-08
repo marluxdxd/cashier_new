@@ -1,28 +1,46 @@
+import 'package:cashier/services/connectivity_service.dart';
 import 'package:cashier/services/product_service.dart';
+import 'package:cashier/services/sync_service.dart';
+import 'package:cashier/services/transaction_service.dart';
+import 'package:cashier/services/transactionitem_service.dart';
 import 'package:cashier/view/home.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:cashier/database/supabase.dart';
 import 'package:cashier/database/local_db.dart';
-
-
+import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  //--------------LOCAL-----------------------//
-   // 1️⃣ Initialize Supabase first
-  await SupabaseConfig.initialize(); 
+  await SupabaseConfig.initialize();
+  await LocalDatabase().database;
 
-  // 2️⃣ Now safe to use Supabase
-  final service = ProductService();
+//--------DELETE DB---------------
 
-  // 3️⃣ Sync data from Supabase to local SQLite
-  await service.syncProducts();
+// final dbPath = await getDatabasesPath();
+// final path = join(dbPath, 'app.db');
+// await deleteDatabase(path); // deletes existing DB
+ final localDb = LocalDatabase();
 
-  // 4️⃣ Run the app
-  runApp(const MyApp());
+  // Tan-awa tanan transactions sa local DB
+  await localDb.printAllTransactions();
+
+  final productService = ProductService();
+  final transactionService = TransactionService ();
+  final transactionItemService = TransactionItemService();
+  ConnectivityService(productService: productService, transactionService: TransactionService(), transactionItemService: transactionItemService); // auto-listen
   
-}
 
+  Connectivity().onConnectivityChanged.listen((status) {
+    if (status != ConnectivityResult.none) {
+      SyncService().sync();
+    }
+  });
+
+
+  runApp(const MyApp());
+}
 
 
 class MyApp extends StatelessWidget {

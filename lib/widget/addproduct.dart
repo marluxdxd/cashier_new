@@ -1,7 +1,6 @@
 import 'package:cashier/services/product_service.dart';
 import 'package:flutter/material.dart';
 
-
 class AddProductPage extends StatefulWidget {
   const AddProductPage({super.key});
 
@@ -20,30 +19,46 @@ class _AddProductPageState extends State<AddProductPage> {
   bool isPromo = false; // default wala promo
   int otherQty = 0;
   //--------------------------------------------------
-void saveProduct() async {
-  final name = nameController.text.trim();
-  final price = double.tryParse(priceController.text.trim()) ?? 0;
-  final stock = int.tryParse(stockController.text.trim()) ?? 0;
+  void saveProduct() async {
+    final name = nameController.text.trim();
+    final price = double.tryParse(priceController.text.trim()) ?? 0;
+    final stock = int.tryParse(stockController.text.trim()) ?? 0;
 
-  // Assign promo quantity to otherQty
-  otherQty = int.tryParse(promoQtyController.text.trim()) ?? 0;
+    // Assign promo quantity to otherQty
+    otherQty = int.tryParse(promoQtyController.text.trim()) ?? 0;
 
-  if (name.isEmpty) return;
+    if (name.isEmpty) return;
 
-  setState(() => isLoading = true);
+    setState(() => isLoading = true);
 
-  // Pass isPromo and otherQty
-  await productService.addProduct(name, price, stock, isPromo, otherQty);
+    // 1️⃣ Save offline
+    await productService.insertProductOffline(
+      name: name,
+      price: price,
+      stock: stock,
+      isPromo: isPromo,
+      otherQty: otherQty,
+    );
 
-  setState(() => isLoading = false);
+    // 2️⃣ Sync if online
+    await productService.syncOfflineProducts();
 
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text("Product Added!")),
-  );
+    setState(() => isLoading = false);
 
-  Navigator.pop(context);
-}
+    // 3️⃣ Show user feedback
+    final online = await productService.isOnline1();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          online
+              ? "Product added and synced!"
+              : "Product added locally. Will sync when online.",
+        ),
+      ),
+    );
 
+    Navigator.pop(context);
+  }
 
   @override
   Widget build(BuildContext context) {

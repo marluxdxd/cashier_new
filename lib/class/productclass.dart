@@ -4,7 +4,7 @@ class Productclass {
   final int id;
   final String name;
   final double price;
-  final int stock;
+  int stock;
   final bool isPromo; 
   final int otherQty; 
   final String type; // 'add', 'update', 'delete' for sync

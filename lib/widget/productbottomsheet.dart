@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-
+import 'package:cashier/services/product_service.dart';
 import 'package:cashier/class/productclass.dart';
 
 class Productbottomsheet extends StatefulWidget {
-  const Productbottomsheet({super.key});
+  const Productbottomsheet({super.key,});
 
   @override
   State<Productbottomsheet> createState() => _ProductbottomsheetState();
@@ -11,7 +11,7 @@ class Productbottomsheet extends StatefulWidget {
 
 class _ProductbottomsheetState extends State<Productbottomsheet> {
   TextEditingController searchController = TextEditingController();
-
+ final productService = ProductService();  // ← importante kaayo
   List<Productclass> products = []; // Full list from Supabase
   List<Productclass> matchedProducts = []; // Filtered list for UI
   String input = "";
@@ -19,8 +19,25 @@ class _ProductbottomsheetState extends State<Productbottomsheet> {
   @override
   void initState() {
     super.initState();
-    fetchProductsFromSupabase();
+    // fetchProductsFromSupabase();
+    loadProducts();  // ← new method
   }
+
+  void loadProducts() async {
+  try {
+    final fetchedProducts = await productService.getAllProducts();
+
+    setState(() {
+      products = fetchedProducts;
+      matchedProducts = fetchedProducts;
+    });
+
+    print("Loaded products: ${products.length}");
+  } catch (e) {
+    print("Error loading products: $e");
+  }
+}
+
 
   void fetchProductsFromSupabase() async {
     try {
@@ -82,27 +99,28 @@ class _ProductbottomsheetState extends State<Productbottomsheet> {
               SizedBox(height: 10),
 
               // Product list
-              Expanded(
-                child: matchedProducts.isEmpty
-                    ? Center(child: Text("No products found"))
-                    : ListView.builder(
-                        itemCount: matchedProducts.length,
-                        itemBuilder: (_, index) {
-                          final product = matchedProducts[index];
-                          return ListTile(
-                            title: Text(product.name),
-                            subtitle: Text(
-                              'Price: ₱${product.price} • Stock: ${product.stock}',
-                            ),
-                            onTap: () {
-                              FocusScope.of(context).unfocus();
-                              Navigator.pop(context, product);
-                              print("You selected: ${product.name}");
-                            },
-                          );
-                        },
-                      ),
+         Expanded(
+  child: matchedProducts.isEmpty
+      ? Center(child: Text("No products found"))
+      : ListView.builder(
+          itemCount: matchedProducts.length,
+          itemBuilder: (_, index) {
+            final product = matchedProducts[index];
+            return ListTile(
+              title: Text(product.name),
+              subtitle: Text(
+                'Price: ₱${product.price} • Stock: ${product.stock}',
               ),
+              onTap: () {
+                FocusScope.of(context).unfocus();
+                Navigator.pop(context, product);
+                print("You selected: ${product.name}");
+              },
+            );
+          },
+        ),
+),
+
             ],
           ),
         ),

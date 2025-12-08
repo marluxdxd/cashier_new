@@ -1,5 +1,6 @@
-class TransactionItem {
+class TransactionItems {
   final int id;
+  final int transactionId;
   final int productId;
   final String productName;
   final int qty;
@@ -7,8 +8,9 @@ class TransactionItem {
   final bool isPromo;
   final int otherQty;
 
-  TransactionItem({
+  TransactionItems({
     required this.id,
+    required this.transactionId,
     required this.productId,
     required this.productName,
     required this.qty,
@@ -17,13 +19,14 @@ class TransactionItem {
     required this.otherQty,
   });
 
-  factory TransactionItem.fromMap(Map<String, dynamic> map) {
-    return TransactionItem(
-      id: map['item_id'],
+  factory TransactionItems.fromMap(Map<String, dynamic> map) {
+    return TransactionItems(
+      id: map['item_id'] ?? map['id'],
+      transactionId: map['transaction_id'],
       productId: map['product_id'],
-      productName: map['product_name'],
+      productName: map['product_name'] ?? "",
       qty: map['qty'],
-      price: map['price'],
+      price: (map['price'] as num).toDouble(),
       isPromo: map['is_promo'] == 1,
       otherQty: map['other_qty'] ?? 0,
     );

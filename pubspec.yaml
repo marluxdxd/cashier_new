@@ -42,9 +42,11 @@ dependencies:
   supabase: ^2.10.0
   supabase_flutter: ^2.10.3
   intl: ^0.20.2
-  connectivity_plus: 7.0.0
+  connectivity_plus: ^4.0.1
   hive: ^2.2.3
   uuid: ^4.5.2
+  permission_handler: ^12.0.1
+  internet_connection_checker: ^1.0.0+1
 
 
  

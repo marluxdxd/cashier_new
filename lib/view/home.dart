@@ -1,3 +1,5 @@
+import 'package:cashier/database/local_db.dart';
+import 'package:cashier/services/product_service.dart';
 import 'package:cashier/services/transaction_service.dart';
 import 'package:flutter/material.dart';
 import 'package:cashier/class/productclass.dart';
@@ -6,6 +8,7 @@ import 'package:cashier/widget/productbottomsheet.dart';
 import 'package:cashier/widget/qtybottomsheet.dart';
 import 'package:cashier/widget/sukli.dart';
 import 'package:cashier/widget/appdrawer.dart';
+import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:intl/intl.dart';
 
 class Home extends StatefulWidget {
@@ -20,6 +23,21 @@ class _HomeState extends State<Home> {
   List<POSRow> rows = [POSRow()]; // Start with one empty row
   TextEditingController customerCashController = TextEditingController();
   final TransactionService transactionService = TransactionService();
+  List<Productclass> matchedProducts = [];
+  final productService = ProductService(); // ← importante kaayo
+
+  @override
+  void initState() {
+    super.initState();
+    loadProducts();
+  }
+
+  void loadProducts() async {
+    final products = await productService.getAllProducts();
+    setState(() {
+      matchedProducts = products;
+    });
+  }
 
   //-----------------Add Empty Row---------------------------------
   void _addEmptyRow() {
@@ -29,22 +47,21 @@ class _HomeState extends State<Home> {
   }
 
   //-----------------Compute Total Bill---------------------------
-double get totalBill {
-  double total = 0;
-  for (var row in rows) {
-    if (row.product != null) {
-      if (row.isPromo) {
-        // Promo product → total = product price only
-        total += row.product!.price;
-      } else {
-        // Normal product → total = price * qty
-        total += row.product!.price * row.qty;
+  double get totalBill {
+    double total = 0;
+    for (var row in rows) {
+      if (row.product != null) {
+        if (row.isPromo) {
+          // Promo product → total = product price only
+          total += row.product!.price;
+        } else {
+          // Normal product → total = price * qty
+          total += row.product!.price * row.qty;
+        }
       }
     }
+    return total;
   }
-  return total;
-}
-
 
   //-----------------Build Each POS Row---------------------------
   Widget buildRow(POSRow row, int index) {
@@ -253,53 +270,101 @@ double get totalBill {
                   return;
                 }
 
+                final bool online =
+                    await InternetConnectionChecker().hasConnection;
+                final localDb = LocalDatabase();
+
                 double change = transactionService.calculateChange(
                   totalBill,
                   cash,
                 );
                 String timestamp = transactionService.getCurrentTimestamp();
 
+                if (!online) {
+                  // ------------------------------------------
+                  //  OFFLINE MODE: SAVE TO LOCAL SQLITE
+                  // ------------------------------------------
+                  print("OFFLINE MODE → Saving to Local DB");
+
+                  // 1️⃣ insert transaction locally
+                  int localTrxId = await localDb.insertTransaction(
+                    id: DateTime.now()
+                        .millisecondsSinceEpoch, // temporary local ID
+                    total: totalBill,
+                    cash: cash,
+                    change: change,
+                    createdAt: timestamp,
+                  );
+
+                  // 2️⃣ insert items locally
+                  for (var row in rows) {
+                    if (row.product != null) {
+                      int qty = row.isPromo ? row.otherQty : row.qty;
+
+                      await localDb.insertTransactionItem(
+                        id: DateTime.now().millisecondsSinceEpoch,
+                        transactionId: localTrxId,
+                        productId: row.product!.id,
+                        productName: row.product!.name,
+                        qty: qty,
+                        price: row.product!.price,
+                        isPromo: row.isPromo,
+                        otherQty: row.otherQty,
+                      );
+                    }
+                  }
+
+                  print("OFFLINE SAVE SUCCESS!");
+
+                  showDialog(
+                    context: context,
+                    builder: (_) => Sukli(change: change, timestamp: timestamp),
+                  );
+
+                  customerCashController.clear();
+                  setState(() {
+                    rows = [POSRow()];
+                  });
+
+                  return; // Stop here because offline
+                }
+
+                // ------------------------------------------
+                //  ONLINE MODE (REAL SUPABASE SAVE)
+                // ------------------------------------------
                 try {
-                  // 1️⃣ Save main transaction
                   int transactionId = await transactionService.saveTransaction(
                     total: totalBill,
                     cash: cash,
                     change: change,
                   );
 
-                  print("Transaction saved! ID: $transactionId at $timestamp");
+                  print("ONLINE → Transaction saved! ID: $transactionId");
 
-                  // 2️⃣ Save each purchased item
                   for (var row in rows) {
                     if (row.product != null) {
-                      int effectiveQty = row.isPromo ? row.otherQty : row.qty;
+                      int qty = row.isPromo ? row.otherQty : row.qty;
 
-                      if (effectiveQty > 0) {
-                        await transactionService.saveTransactionItem(
-                          transactionId: transactionId,
-                          product: row.product!,
-                          qty: effectiveQty,
-                          isPromo: row.isPromo,
-                          otherQty: row.otherQty,
-                        );
+                      await transactionService.saveTransactionItem(
+                        transactionId: transactionId,
+                        product: row.product!,
+                        qty: qty,
+                        isPromo: row.isPromo,
+                        otherQty: row.otherQty,
+                      );
 
-                        await transactionService.updateStock(
-                          productId: row.product!.id,
-                          newStock: row.product!.stock - effectiveQty,
-                        );
-                      }
+                      await transactionService.updateStock(
+                        productId: row.product!.id,
+                        newStock: row.product!.stock - qty,
+                      );
                     }
                   }
 
-                  print("All transaction items saved!");
-
-                  // 3️⃣ Show dialog
                   showDialog(
                     context: context,
                     builder: (_) => Sukli(change: change, timestamp: timestamp),
                   );
 
-                  // 4️⃣ Clear input + rows
                   customerCashController.clear();
                   setState(() {
                     rows = [POSRow()];

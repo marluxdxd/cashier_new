@@ -1,4 +1,8 @@
+import 'package:cashier/view/all_products_screen.dart';
+import 'package:cashier/view/history_screen.dart';
 import 'package:cashier/view/home.dart';
+import 'package:cashier/view/sales_reports_screen.dart';
+import 'package:cashier/view/stock_screnn.dart';
 import 'package:cashier/widget/addproduct.dart';
 import 'package:flutter/material.dart';
 
@@ -96,36 +100,58 @@ class _AppdrawerState extends State<Appdrawer> {
 },
 
           ),
-          ListTile(
-            leading: Icon(Icons.list_alt),
-            title: Text("View All Products"),
-            onTap: () {
-              Navigator.pop(context);
-            },
-          ),
-          ListTile(
-            leading: Icon(Icons.storefront_sharp),
-            title: Text('Stock'),
-            onTap: () {
-              Navigator.pop(context);
-            },
-          ),
+         ListTile(
+  leading: Icon(Icons.list_alt),
+  title: Text("View All Products"),
+  onTap: () {
+    Navigator.pop(context); // close drawer if inside drawer
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => AllProductsScreen()),
+    );
+  },
+),
 
-          ListTile(
-            leading: Icon(Icons.history),
-            title: Text("History"),
-            onTap: () {
-              Navigator.pop(context);
-            },
-          ),
+         ListTile(
+  leading: Icon(Icons.storefront_sharp),
+  title: Text('Stock'),
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => StockScreen()),
+    );
+  },
+),
 
-          ListTile(
-            leading: Icon(Icons.campaign),
-            title: Text("Sales Report"),
-            onTap: () {
-              Navigator.pop(context);
-            },
-          ),
+
+    ListTile(
+  leading: Icon(Icons.history),
+  title: Text("History"),
+  onTap: () {
+    Navigator.pop(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (context) => HistoryScreen()),
+    );
+  },
+),
+
+
+       ListTile(
+  leading: Icon(Icons.campaign),
+  title: Text("Sales Report"),
+  onTap: () {
+    Navigator.pop(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SalesNavigationScreen(),
+      ),
+    );
+  },
+),
+
 
           ExpansionTile(
             title: Text("Database"),
