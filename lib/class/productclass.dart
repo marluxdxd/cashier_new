@@ -5,8 +5,9 @@ class Productclass {
   final String name;
   final double price;
   final int stock;
-  final bool isPromo; // add this
-  final int otherQty; // add this
+  final bool isPromo; 
+  final int otherQty; 
+  final String type; // 'add', 'update', 'delete' for sync
 
   Productclass({
     required this.id,
@@ -15,11 +16,12 @@ class Productclass {
     required this.stock,
     this.isPromo = false, // default false
     this.otherQty = 0, // default 0
+    this.type = 'add',
   });
 
   // Convert to Map for Supabase insert/update
   Map<String, dynamic> toMap() {
-    return {'id': id, 'name': name, 'price': price, 'stock': stock, 'is_promo': isPromo, 'other_qty': otherQty};
+    return {'id': id, 'name': name, 'price': price, 'stock': stock, 'is_promo': isPromo, 'other_qty': otherQty,'type': type,};
   }
 
   // Convert Supabase row → Productclass
@@ -33,6 +35,7 @@ class Productclass {
       stock: map['stock'],
       isPromo: map['is_promo'] ?? false,
       otherQty: map['other_qty'] ?? 0,
+      type: map['type'] ?? 'add',
     );
   }
 
@@ -45,3 +48,44 @@ class Productclass {
         .toList();
   }
 }
+
+// Offline Transaction
+class OfflineTransaction {
+  int? id;
+  double total;
+  double cash;
+  double change;
+  DateTime timestamp;
+  List<OfflineTransactionItem> items;
+
+  OfflineTransaction({
+    this.id,
+    required this.total,
+    required this.cash,
+    required this.change,
+    required this.timestamp,
+    required this.items,
+  });
+}
+
+// Transaction item
+class OfflineTransactionItem {
+  int? id;
+  int productId;
+  String productName;
+  double price;
+  int qty;
+  bool isPromo;
+  int otherQty;
+
+  OfflineTransactionItem({
+    this.id,
+    required this.productId,
+    required this.productName,
+    required this.price,
+    required this.qty,
+    required this.isPromo,
+    required this.otherQty,
+  });
+}
+

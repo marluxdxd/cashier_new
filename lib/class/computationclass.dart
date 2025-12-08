@@ -1,20 +1,20 @@
-import 'package:cashier/class/productclass.dart';
+// import 'package:cashier/class/productclass.dart';
 
 
-class ComputationClass{
-  final Productclass product;
-  final int quantity;
+// class ComputationClass{
+//   final Productclass product;
+//   final int quantity;
 
 
-ComputationClass({
-  required this.product,
-   required this.quantity,
+// ComputationClass({
+//   required this.product,
+//    required this.quantity,
  
-   });
+//    });
 
 
-   double get totalPrice => product.price * quantity;
+//    double get totalPrice => product.price * quantity;
 
 
-}
+// }
 
