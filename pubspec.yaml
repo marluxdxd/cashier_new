@@ -43,6 +43,8 @@ dependencies:
   supabase_flutter: ^2.10.3
   intl: ^0.20.2
   connectivity_plus: 7.0.0
+  hive: ^2.2.3
+  uuid: ^4.5.2
 
 
  
