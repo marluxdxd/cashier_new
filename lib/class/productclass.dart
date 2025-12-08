@@ -49,43 +49,4 @@ class Productclass {
   }
 }
 
-// Offline Transaction
-class OfflineTransaction {
-  int? id;
-  double total;
-  double cash;
-  double change;
-  DateTime timestamp;
-  List<OfflineTransactionItem> items;
-
-  OfflineTransaction({
-    this.id,
-    required this.total,
-    required this.cash,
-    required this.change,
-    required this.timestamp,
-    required this.items,
-  });
-}
-
-// Transaction item
-class OfflineTransactionItem {
-  int? id;
-  int productId;
-  String productName;
-  double price;
-  int qty;
-  bool isPromo;
-  int otherQty;
-
-  OfflineTransactionItem({
-    this.id,
-    required this.productId,
-    required this.productName,
-    required this.price,
-    required this.qty,
-    required this.isPromo,
-    required this.otherQty,
-  });
-}
 

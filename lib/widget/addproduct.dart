@@ -1,5 +1,6 @@
+import 'package:cashier/services/product_service.dart';
 import 'package:flutter/material.dart';
-import '../services/product_service.dart';
+
 
 class AddProductPage extends StatefulWidget {
   const AddProductPage({super.key});
