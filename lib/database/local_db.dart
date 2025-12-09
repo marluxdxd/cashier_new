@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -10,31 +9,56 @@ class LocalDatabase {
   LocalDatabase._internal();
 
   Database? _database;
+// ------------------- MONTHLY SALES (AUTO-GENERATE) -------------------
 
+Future<List<Map<String, dynamic>>> getMonthlySales() async {
+  final db = await database;
+
+  // GROUP all transactions by year-month
+  final result = await db.rawQuery('''
+    SELECT 
+      strftime('%Y-%m', created_at) AS month,
+      SUM(total) AS revenue,
+      COUNT(id) AS total_transactions
+    FROM transactions
+    GROUP BY strftime('%Y-%m', created_at)
+    ORDER BY month DESC
+  ''');
+
+  return result;
+}
 
   // Insert stock update to queue
-Future<int> insertStockUpdate(int productId, int newStock) async {
-  final db = await database;
-  return await db.insert('stock_updates', {
-    'product_id': productId,
-    'new_stock': newStock,
-    'synced': 0,
-    'created_at': DateTime.now().toIso8601String(),
-  });
-}
+  Future<int> insertStockUpdate(int productId, int newStock) async {
+    final db = await database;
+    return await db.insert('stock_updates', {
+      'product_id': productId,
+      'new_stock': newStock,
+      'synced': 0,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+  }
 
-// Get unsynced stock updates
-Future<List<Map<String, dynamic>>> getUnsyncedStockUpdates() async {
-  final db = await database;
-  return await db.query('stock_updates', where: 'synced = ?', whereArgs: [0]);
-}
+  // Get unsynced stock updates
+  Future<List<Map<String, dynamic>>> getUnsyncedStockUpdates() async {
+    final db = await database;
+    return await db.query(
+      'stock_update_queue',
+      where: 'is_synced = ?',
+      whereArgs: [0],
+    );
+  }
 
-// Mark stock update as synced
-Future<void> markStockUpdateSynced(int id) async {
-  final db = await database;
-  await db.update('stock_updates', {'synced': 1}, where: 'id = ?', whereArgs: [id]);
-}
-
+  // Mark stock update as synced
+  Future<int> markStockUpdateSynced(int id) async {
+    final db = await database;
+    return await db.update(
+      'stock_update_queue',
+      {'is_synced': 1},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
 
   // Get transaction items for a specific transaction
   Future<List<Map<String, dynamic>>> getTransactionItemsForTransaction(
@@ -86,28 +110,42 @@ Future<void> markStockUpdateSynced(int id) async {
       [startDate, endDate],
     );
   }
+// ---------------------------------------------------------------//
+ //                     HISTORY         
+//---------------------------------------------------------------//
+Future<List<Map<String, dynamic>>> getTransactionsWithItems() async {
+  final db = await database;
 
-  Future<List<Map<String, dynamic>>> getTransactionsWithItems() async {
-    final db = await database;
-    return await db.rawQuery('''
-    SELECT 
-      t.id AS transaction_id,
-      t.cash,
-      t.change,
-      t.created_at,
-      ti.id AS item_id,
-      ti.product_id,
-      ti.product_name,
-      ti.qty,
-      ti.price,
-      ti.is_promo,
-      ti.other_qty
-    FROM transactions t
-    LEFT JOIN transaction_items ti
-    ON t.id = ti.transaction_id
-    ORDER BY t.created_at DESC
-  ''');
+  // Fetch all transactions
+  final tx = await db.query("transactions", orderBy: "created_at DESC");
+
+  List<Map<String, dynamic>> result = [];
+
+  for (final t in tx) {
+    final transactionId =
+        t["transaction_id"] ?? t["id"]; // FIX: use the correct ID
+
+    // Fetch items linked to this transaction
+    final items = await db.query(
+      "transaction_items",
+      where: "transaction_id = ?",
+      whereArgs: [transactionId],
+    );
+
+    result.add({
+      "transaction_id": transactionId,
+      "total": t["total"],
+      "cash": t["cash"],
+      "change": t["change"],
+      "created_at": t["created_at"],
+      "items": items,
+    });
   }
+
+  return result;
+}
+
+
 
   // Get transaction items with product info
   Future<List<Map<String, dynamic>>> getTransactionItemsWithProduct(
@@ -214,7 +252,7 @@ Future<void> markStockUpdateSynced(int id) async {
 
     final db = await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         // Products table
         await db.execute('''
@@ -259,21 +297,35 @@ Future<void> markStockUpdateSynced(int id) async {
             
           )
         ''');
-        // Stock_updates table
+     
         await db.execute('''
-        CREATE TABLE stock_updates(
-            id INTEGER PRIMARY KEY,
+         CREATE TABLE IF NOT EXISTS stock_update_queue(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+         product_id INTEGER NOT NULL,
+       new_stock INTEGER NOT NULL,
+         is_synced INTEGER DEFAULT 0,
+         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+           FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
+          )
+        ''');
+await db.execute('PRAGMA foreign_keys = ON');
+
+      },
+        onUpgrade: (db, oldVersion, newVersion) async {
+      // Add new table for existing installations
+      if (oldVersion < 2) {
+        await db.execute('''
+          CREATE TABLE stock_update_queue(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             product_id INTEGER NOT NULL,
             new_stock INTEGER NOT NULL,
-            synced INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            
-            
-)
-    ''');
-
-    
-      },
+            is_synced INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
+          )
+         ''');
+         }
+    },
     );
 
     // Enable foreign key support
@@ -394,4 +446,28 @@ Future<void> markStockUpdateSynced(int id) async {
       whereArgs: [id],
     );
   }
+
+  Future<int> insertStockUpdateQueue(int productId, int newStock) async {
+    final db = await database;
+    return await db.insert('stock_update_queue', {
+      'product_id': productId,
+      'new_stock': newStock,
+      'is_synced': 0,
+      'created_at': DateTime.now().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+    // ------------------------------------------------------------- //
+  //                  MONTHLY REPORTS (NEW)                       
+  // ------------------------------------------------------------- //
+
+  /// AUTO-GENERATE MONTHLY SALES RESULTS
+  ///
+  /// Output Example:
+  ///   month: "2025-01"
+  ///   revenue: 45000
+  ///   profit: 45000 (no cost column in your DB)
+  ///
+
 }
+

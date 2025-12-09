@@ -1,7 +1,7 @@
 import 'package:cashier/view/all_products_screen.dart';
 import 'package:cashier/view/history_screen.dart';
 import 'package:cashier/view/home.dart';
-import 'package:cashier/view/sales_reports_screen.dart';
+import 'package:cashier/view/reports_file/sales_reports_screen.dart';
 
 import 'package:cashier/view/stock_screnn.dart';
 import 'package:cashier/widget/addproduct.dart';

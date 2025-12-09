@@ -9,7 +9,6 @@ import 'package:cashier/widget/qtybottomsheet.dart';
 import 'package:cashier/widget/sukli.dart';
 import 'package:cashier/widget/appdrawer.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
-import 'package:intl/intl.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});

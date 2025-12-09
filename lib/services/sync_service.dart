@@ -2,8 +2,6 @@ import 'package:cashier/database/local_db.dart';
 import 'package:cashier/database/supabase.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:uuid/uuid.dart';
-import 'package:cashier/services/product_service.dart';
-import 'package:cashier/services/transaction_service.dart';
 
 final uuid = Uuid();
 

@@ -8,8 +8,6 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:cashier/database/supabase.dart';
 import 'package:cashier/database/local_db.dart';
-import 'package:path/path.dart';
-import 'package:sqflite/sqflite.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

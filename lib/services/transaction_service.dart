@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:cashier/class/product_offline.dart';
 import 'package:cashier/database/local_db.dart';
 import 'package:cashier/database/supabase.dart';
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 //-----------MANUAL--------------------------

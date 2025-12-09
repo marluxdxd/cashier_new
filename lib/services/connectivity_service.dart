@@ -1,7 +1,6 @@
 import 'package:cashier/services/transaction_service.dart';
 import 'package:cashier/services/transactionitem_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:sqflite/sqflite.dart';
 import 'product_service.dart';
 
 class ConnectivityService {

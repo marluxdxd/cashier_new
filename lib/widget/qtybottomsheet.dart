@@ -1,4 +1,3 @@
-import 'package:cashier/class/productclass.dart';
 import 'package:cashier/class/quantityclass.dart';
 import 'package:flutter/material.dart';
 
