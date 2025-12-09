@@ -11,31 +11,60 @@ class LocalDatabase {
 
   Database? _database;
 
+
+  // Insert stock update to queue
+Future<int> insertStockUpdate(int productId, int newStock) async {
+  final db = await database;
+  return await db.insert('stock_updates', {
+    'product_id': productId,
+    'new_stock': newStock,
+    'synced': 0,
+    'created_at': DateTime.now().toIso8601String(),
+  });
+}
+
+// Get unsynced stock updates
+Future<List<Map<String, dynamic>>> getUnsyncedStockUpdates() async {
+  final db = await database;
+  return await db.query('stock_updates', where: 'synced = ?', whereArgs: [0]);
+}
+
+// Mark stock update as synced
+Future<void> markStockUpdateSynced(int id) async {
+  final db = await database;
+  await db.update('stock_updates', {'synced': 1}, where: 'id = ?', whereArgs: [id]);
+}
+
+
   // Get transaction items for a specific transaction
-Future<List<Map<String, dynamic>>> getTransactionItemsForTransaction(int transactionId) async {
-  final db = await database;
-  return await db.query(
-    'transaction_items',
-    where: 'transaction_id = ?',
-    whereArgs: [transactionId],
-  );
-}
+  Future<List<Map<String, dynamic>>> getTransactionItemsForTransaction(
+    int transactionId,
+  ) async {
+    final db = await database;
+    return await db.query(
+      'transaction_items',
+      where: 'transaction_id = ?',
+      whereArgs: [transactionId],
+    );
+  }
 
-Future<void> deleteItemsByTransaction(int transactionId) async {
-  final db = await database;
-  await db.delete(
-    'transaction_items',
-    where: 'transaction_id = ?',
-    whereArgs: [transactionId],
-  );
-}
+  Future<void> deleteItemsByTransaction(int transactionId) async {
+    final db = await database;
+    await db.delete(
+      'transaction_items',
+      where: 'transaction_id = ?',
+      whereArgs: [transactionId],
+    );
+  }
 
-Future<List<Map<String, dynamic>>> getTransactionsWithItemsFiltered(
-    String startDate, String endDate) async {
+  Future<List<Map<String, dynamic>>> getTransactionsWithItemsFiltered(
+    String startDate,
+    String endDate,
+  ) async {
+    final db = await database;
 
-  final db = await database;
-
-  return await db.rawQuery('''
+    return await db.rawQuery(
+      '''
     SELECT 
       t.id AS transaction_id,
       t.cash,
@@ -53,15 +82,14 @@ Future<List<Map<String, dynamic>>> getTransactionsWithItemsFiltered(
     ON t.id = ti.transaction_id
     WHERE date(t.created_at) BETWEEN date(?) AND date(?)
     ORDER BY t.created_at DESC
-  ''', [startDate, endDate]);
-}
+  ''',
+      [startDate, endDate],
+    );
+  }
 
-
-
-
-Future<List<Map<String, dynamic>>> getTransactionsWithItems() async {
-  final db = await database;
-  return await db.rawQuery('''
+  Future<List<Map<String, dynamic>>> getTransactionsWithItems() async {
+    final db = await database;
+    return await db.rawQuery('''
     SELECT 
       t.id AS transaction_id,
       t.cash,
@@ -79,12 +107,15 @@ Future<List<Map<String, dynamic>>> getTransactionsWithItems() async {
     ON t.id = ti.transaction_id
     ORDER BY t.created_at DESC
   ''');
-}
+  }
 
-// Get transaction items with product info
-Future<List<Map<String, dynamic>>> getTransactionItemsWithProduct(int transactionId) async {
-  final db = await database;
-  return await db.rawQuery('''
+  // Get transaction items with product info
+  Future<List<Map<String, dynamic>>> getTransactionItemsWithProduct(
+    int transactionId,
+  ) async {
+    final db = await database;
+    return await db.rawQuery(
+      '''
     SELECT ti.id as item_id, ti.transaction_id, ti.qty, ti.price, ti.is_promo, 
            p.name as product_name, t.total, t.cash, t.change, t.created_at
     FROM transaction_items ti
@@ -92,77 +123,84 @@ Future<List<Map<String, dynamic>>> getTransactionItemsWithProduct(int transactio
     INNER JOIN products p ON p.id = ti.product_id
     WHERE ti.transaction_id = ?
     ORDER BY ti.id ASC
-  ''', [transactionId]);
-}
-//BAG-O----------------------------------------------------------------
-Future<List<Map<String, dynamic>>> getUnsyncedTransactions() async {
-  final db = await database;
-  return await db.query('transactions', where: 'is_synced = ?', whereArgs: [0]);
-}
+  ''',
+      [transactionId],
+    );
+  }
 
-Future<List<Map<String, dynamic>>> getItemsForTransaction(int trxId) async {
-  final db = await database;
-  return await db.query(
-    'transaction_items',
-    where: 'transaction_id = ? AND is_synced = ?',
-    whereArgs: [trxId, 0],
-  );
-}
+  //BAG-O----------------------------------------------------------------
+  Future<List<Map<String, dynamic>>> getUnsyncedTransactions() async {
+    final db = await database;
+    return await db.query(
+      'transactions',
+      where: 'is_synced = ?',
+      whereArgs: [0],
+    );
+  }
 
-Future<void> markTransactionSynced(int id) async {
-  final db = await database;
-  await db.update(
-    'transactions',
-    {'is_synced': 1},
-    where: 'id = ?',
-    whereArgs: [id],
-  );
-}
+  Future<List<Map<String, dynamic>>> getItemsForTransaction(int trxId) async {
+    final db = await database;
+    return await db.query(
+      'transaction_items',
+      where: 'transaction_id = ? AND is_synced = ?',
+      whereArgs: [trxId, 0],
+    );
+  }
 
-Future<void> markItemSynced(int itemId) async {
-  final db = await database;
-  await db.update(
-    'transaction_items',
-    {'is_synced': 1},
-    where: 'id = ?',
-    whereArgs: [itemId],
-  );
-}
+  Future<void> markTransactionSynced(int id) async {
+    final db = await database;
+    await db.update(
+      'transactions',
+      {'is_synced': 1},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
 
+  Future<void> markItemSynced(int itemId) async {
+    final db = await database;
+    await db.update(
+      'transaction_items',
+      {'is_synced': 1},
+      where: 'id = ?',
+      whereArgs: [itemId],
+    );
+  }
 
-//BAG-O-------------------------------------------------------------
+  //BAG-O-------------------------------------------------------------
 
-Future<void> printAllTransactions() async {
-  final db = await database;
-  final List<Map<String, dynamic>> transactions = await db.query('transactions');
-  
-  if (transactions.isEmpty) {
-    print("Walay transactions sa local DB");
-  } else {
-    print("Transactions in local DB:");
-    for (var t in transactions) {
-      print(t);
+  Future<void> printAllTransactions() async {
+    final db = await database;
+    final List<Map<String, dynamic>> transactions = await db.query(
+      'transactions',
+    );
+
+    if (transactions.isEmpty) {
+      print("Walay transactions sa local DB");
+    } else {
+      print("Transactions in local DB:");
+      for (var t in transactions) {
+        print(t);
+      }
     }
   }
-}
 
-Future<void> backupDatabaseToDownloads() async {
-  if (await Permission.storage.request().isGranted) {
-    final dbPath = await getDatabasesPath();
-    final dbFile = File(join(dbPath, 'app.db'));
+  Future<void> backupDatabaseToDownloads() async {
+    if (await Permission.storage.request().isGranted) {
+      final dbPath = await getDatabasesPath();
+      final dbFile = File(join(dbPath, 'app.db'));
 
-    final downloadsDir = Directory('/storage/emulated/0/Download'); // Android downloads
-    final backupFile = File(join(downloadsDir.path, 'app_backup.db'));
+      final downloadsDir = Directory(
+        '/storage/emulated/0/Download',
+      ); // Android downloads
+      final backupFile = File(join(downloadsDir.path, 'app_backup.db'));
 
-    await dbFile.copy(backupFile.path);
-    print("Backup saved to Downloads: ${backupFile.path}");
-  } else {
-    print("Storage permission denied");
+      await dbFile.copy(backupFile.path);
+      print("Backup saved to Downloads: ${backupFile.path}");
+    } else {
+      print("Storage permission denied");
+    }
   }
-}
-
-
-
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -221,6 +259,20 @@ Future<void> backupDatabaseToDownloads() async {
             
           )
         ''');
+        // Stock_updates table
+        await db.execute('''
+        CREATE TABLE stock_updates(
+            id INTEGER PRIMARY KEY,
+            product_id INTEGER NOT NULL,
+            new_stock INTEGER NOT NULL,
+            synced INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            
+            
+)
+    ''');
+
+    
       },
     );
 
@@ -285,17 +337,13 @@ Future<void> backupDatabaseToDownloads() async {
     String? createdAt,
   }) async {
     final db = await database;
-    return await db.insert(
-      'transactions',
-      {
-        'id': id,
-        'total': total,
-        'cash': cash,
-        'change': change,
-        'created_at': createdAt ?? DateTime.now().toIso8601String(),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    return await db.insert('transactions', {
+      'id': id,
+      'total': total,
+      'cash': cash,
+      'change': change,
+      'created_at': createdAt ?? DateTime.now().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<List<Map<String, dynamic>>> getTransactions() async {
@@ -321,20 +369,16 @@ Future<void> backupDatabaseToDownloads() async {
     int otherQty = 0,
   }) async {
     final db = await database;
-    return await db.insert(
-      'transaction_items',
-      {
-        'id': id,
-        'transaction_id': transactionId,
-        'product_id': productId,
-        'product_name': productName,
-        'qty': qty,
-        'price': price,
-        'is_promo': isPromo ? 1 : 0,
-        'other_qty': otherQty,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    return await db.insert('transaction_items', {
+      'id': id,
+      'transaction_id': transactionId,
+      'product_id': productId,
+      'product_name': productName,
+      'qty': qty,
+      'price': price,
+      'is_promo': isPromo ? 1 : 0,
+      'other_qty': otherQty,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<List<Map<String, dynamic>>> getTransactionItems() async {
@@ -344,8 +388,10 @@ Future<void> backupDatabaseToDownloads() async {
 
   Future<int> deleteTransactionItem(int id) async {
     final db = await database;
-    return await db.delete('transaction_items', where: 'id = ?', whereArgs: [id]);
+    return await db.delete(
+      'transaction_items',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
-
-
 }
