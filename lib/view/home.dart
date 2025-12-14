@@ -9,15 +9,20 @@ import 'package:cashier/widget/qtybottomsheet.dart';
 import 'package:cashier/widget/sukli.dart';
 import 'package:cashier/widget/appdrawer.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
+import 'dart:async';
 
 class Home extends StatefulWidget {
   const Home({super.key});
 
   @override
   State<Home> createState() => _HomeState();
+  
 }
 
 class _HomeState extends State<Home> {
+  StreamSubscription<InternetConnectionStatus>? _listener;
+
+  
   //----------------------Controller---------------------------
   List<POSRow> rows = [POSRow()]; // Start with one empty row
   TextEditingController customerCashController = TextEditingController();
@@ -25,11 +30,27 @@ class _HomeState extends State<Home> {
   List<Productclass> matchedProducts = [];
   final productService = ProductService(); // ← importante kaayo
 
-  @override
-  void initState() {
-    super.initState();
-    loadProducts();
+@override
+void initState() {
+  super.initState();
+  loadProducts(); // existing code
+
+  // Internet status listener
+_listener = InternetConnectionChecker().onStatusChange.listen((status) async {
+  if (status == InternetConnectionStatus.connected) {
+    print("Device online → syncing queued stock...");
+    final localDb = LocalDatabase();
+    await localDb.syncQueuedStockWithServer(transactionService);
   }
+});
+}
+
+  @override
+void dispose() {
+  _listener?.cancel();
+  customerCashController.dispose(); // existing controller dispose
+  super.dispose();
+}
 
   void loadProducts() async {
     final products = await productService.getAllProducts();
@@ -300,6 +321,70 @@ class _HomeState extends State<Home> {
                     if (row.product != null) {
                       int qty = row.isPromo ? row.otherQty : row.qty;
 
+//--------------------------------------------------------
+//--------------------------------------------------------
+//--------------------------------------------------------
+
+
+                      
+  // 🔥 GET ACTUAL STOCK FROM LOCAL DB
+    int? currentStock =
+        await localDb.getProductStock(row.product!.id);
+
+    print(
+      "PRODUCT: ${row.product!.name} | "
+      "DB STOCK: $currentStock | "
+      "QTY: $qty",
+    );
+  if (currentStock == null) {
+      print("ERROR: Product not found in local DB");
+      return;
+    }
+       // 🚨 PREVENT NEGATIVE STOCK
+    if (currentStock < qty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Insufficient stock for ${row.product!.name}",
+          ),
+        ),
+      );
+      return;
+    }
+
+// minus stock locally
+int newStock = currentStock - qty;
+await localDb.updateProductStock(row.product!.id, newStock);
+
+// queue stock change
+await localDb.insertStockUpdateQueue1(
+  productId: row.product!.id,
+  qty: qty,
+  type: 'SALE',
+);
+
+print(
+  "QUEUED STOCK → "
+  "${row.product!.name} | QTY: -$qty",
+);
+                      //MARLU TESTING//-------------------------------------------------------------
+                        //MARLU TESTING//-------------------------------------------------------------
+                          //MARLU TESTING//-------------------------------------------------------------
+//                     int test = qty - 1;
+           
+//                       print(
+//                         "PRODUCT: ${row.product!.name} | QTY: $qty | STOCK BEFORE: ${row.product!.stock}",
+//                       );
+//                       print("""
+// PRODUCT ID: ${row.product!.id}
+// NAME: ${row.product!.name}
+// QTY: $qty $test
+// PRICE: ${row.product!.price}
+// IS PROMO: ${row.isPromo}
+// """);
+  //MARLU TESTING//-------------------------------------------------------------
+    //MARLU TESTING//-------------------------------------------------------------
+      //MARLU TESTING//-------------------------------------------------------------
                       await localDb.insertTransactionItem(
                         id: DateTime.now().millisecondsSinceEpoch,
                         transactionId: localTrxId,
