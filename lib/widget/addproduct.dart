@@ -20,45 +20,47 @@ class _AddProductPageState extends State<AddProductPage> {
   int otherQty = 0;
   //--------------------------------------------------
   void saveProduct() async {
-    final name = nameController.text.trim();
-    final price = double.tryParse(priceController.text.trim()) ?? 0;
-    final stock = int.tryParse(stockController.text.trim()) ?? 0;
+  final name = nameController.text.trim();
+  final price = double.tryParse(priceController.text.trim()) ?? 0;
+  final stock = int.tryParse(stockController.text.trim()) ?? 0;
 
-    // Assign promo quantity to otherQty
-    otherQty = int.tryParse(promoQtyController.text.trim()) ?? 0;
+  otherQty = int.tryParse(promoQtyController.text.trim()) ?? 0;
 
-    if (name.isEmpty) return;
+  if (name.isEmpty) return;
 
-    setState(() => isLoading = true);
+  setState(() => isLoading = true);
 
-    // 1️⃣ Save offline
-    await productService.insertProductOffline(
-      name: name,
-      price: price,
-      stock: stock,
-      isPromo: isPromo,
-      otherQty: otherQty,
-    );
+  // 1️⃣ Save offline and get local ID
+  final localId = await productService.insertProductOffline(
+    name: name,
+    price: price,
+    stock: stock,
+    isPromo: isPromo,
+    otherQty: otherQty,
+  );
 
-    // 2️⃣ Sync if online
-    await productService.syncOfflineProducts();
-
-    setState(() => isLoading = false);
-
-    // 3️⃣ Show user feedback
-    final online = await productService.isOnline1();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          online
-              ? "Product added and synced!"
-              : "Product added locally. Will sync when online.",
-        ),
-      ),
-    );
-
-    Navigator.pop(context);
+  // 2️⃣ Sync this product if online
+  if (await productService.isOnline1()) {
+    await productService.syncSingleProduct(localId);
   }
+
+  setState(() => isLoading = false);
+
+  // 3️⃣ Show user feedback
+  final online = await productService.isOnline1();
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        online
+            ? "Product added and synced!"
+            : "Product added locally. Will sync when online.",
+      ),
+    ),
+  );
+
+  Navigator.pop(context);
+}
+
 
   @override
   Widget build(BuildContext context) {

@@ -222,6 +222,29 @@ class LocalDatabase {
       }
     }
   }
+
+
+
+  Future<void> setLastProductSync(DateTime timestamp) async {
+  final db = await database;
+  await db.insert(
+    'meta',
+    {'key': 'last_product_sync', 'value': timestamp.toIso8601String()},
+    conflictAlgorithm: ConflictAlgorithm.replace,
+  );
+}
+
+Future<DateTime?> getLastProductSync() async {
+  final db = await database;
+  final result = await db.query(
+    'meta',
+    where: 'key = ?',
+    whereArgs: ['last_product_sync'],
+  );
+  if (result.isEmpty) return null;
+  return DateTime.parse(result.first['value'] as String);
+}
+
 //--------------------------------------------------------
 //--------------------------------------------------------
 //--------------------------------------------------------
@@ -303,15 +326,7 @@ Future<int> insertStockUpdateQueue1({
 }
 
 
-  Future<int> insertStockUpdateQueue(int productId, int newStock) async {
-    final db = await database;
-    return await db.insert('stock_update_queue', {
-      'product_id': productId,
-      'new_stock': newStock,
-      'is_synced': 0,
-      'created_at': DateTime.now().toIso8601String(),
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
-  }
+
 
 
 //--------------------------------------------------------
@@ -358,7 +373,8 @@ Future<int> insertStockUpdateQueue1({
             stock INTEGER NOT NULL,
             is_promo INTEGER DEFAULT 0,
             other_qty INTEGER,
-            is_synced INTEGER DEFAULT 0
+            is_synced INTEGER DEFAULT 0,
+            client_uuid TEXT UNIQUE
           )
         ''');
 
@@ -531,10 +547,30 @@ Future<int> insertStockUpdateQueue1({
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  Future<List<Map<String, dynamic>>> getTransactionItems() async {
-    final db = await database;
-    return await db.query('transaction_items');
-  }
+
+
+// Get all transactions
+Future<List<Map<String, dynamic>>> getAllTransactions() async {
+  final db = await database;
+  final result = await db.query(
+    'transactions',
+    orderBy: 'created_at DESC',
+    
+  );
+  return result;
+}
+// Get items for a specific transaction
+Future<List<Map<String, dynamic>>> getTransactionItems(int transactionId) async {
+  final db = await database;
+  final result = await db.query(
+    'transaction_items',
+    where: 'transaction_id = ?',
+    whereArgs: [transactionId],
+  );
+  return result;
+  
+}
+
 
   Future<int> deleteTransactionItem(int id) async {
     final db = await database;

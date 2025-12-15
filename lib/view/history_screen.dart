@@ -1,20 +1,17 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cashier/database/local_db.dart';
+import 'package:cashier/services/product_service.dart'; // for online check
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
 
   @override
-  _HistoryScreenState createState() => _HistoryScreenState();
+  State<HistoryScreen> createState() => _HistoryScreenState();
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
   final LocalDatabase localDb = LocalDatabase();
   List<Map<String, dynamic>> transactions = [];
-  DateTimeRange? selectedDateRange;
 
   @override
   void initState() {
@@ -22,162 +19,130 @@ class _HistoryScreenState extends State<HistoryScreen> {
     loadTransactions();
   }
 
-  Future<bool> isOnline() async {
-    try {
-      final result = await InternetAddress.lookup('example.com');
-      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
-    } catch (_) {
-      return false;
-    }
-  }
+  // ------------------ SYNC ONLINE TRANSACTIONS ------------------
+ Future<void> syncOnlineTransactions() async {
+  final productService = ProductService();
+  final online = await productService.isOnline();
+  if (!online) return;
 
-  Future<void> loadTransactions() async {
-    // Load local transactions first
-    transactions = await localDb.getTransactionsWithItems();
+  try {
+    final supaTransactions =
+        await productService.supabase.from('transactions').select();
 
-    // Fetch online transactions if online
-    if (await isOnline()) {
-      try {
-        final onlineData = await Supabase.instance.client
-            .from('transactions')
-            .select(
-              '''
-              id, total, cash, change, created_at, 
-              transaction_items(id, product_id, product_name, qty, price, is_promo, other_qty)
-              '''
-            )
-            .order('created_at', ascending: false);
+    for (var t in supaTransactions) {
+      // Insert locally only if it doesn't exist
+      final existsLocally = await localDb.getAllTransactions().then(
+          (list) => list.any((trx) => trx['id'] == t['id']));
 
-        // onlineData is List<dynamic>
-        for (var t in onlineData) {
-          final transactionId = t['id'];
-          final exists = transactions.any((local) => local['transaction_id'] == transactionId);
+      if (!existsLocally) {
+        await localDb.insertTransaction(
+          id: t['id'],
+          total: (t['total'] as num).toDouble(),
+          cash: (t['cash'] as num).toDouble(),
+          change: (t['change'] as num).toDouble(),
+          createdAt: t['created_at'] as String?,
+        );
 
-          if (!exists) {
-            await localDb.insertTransaction(
-              id: transactionId,
-              total: t['total'],
-              cash: t['cash'],
-              change: t['change'],
-              createdAt: t['created_at'],
-            );
+        // Fetch items
+        final items = await productService.supabase
+            .from('transaction_items')
+            .select()
+            .eq('transaction_id', t['id']);
 
-            final items = t['transaction_items'] as List<dynamic>? ?? [];
-            for (var item in items) {
-              await localDb.insertTransactionItem(
-                id: item['id'],
-                transactionId: transactionId,
-                productId: item['product_id'],
-                productName: item['product_name'],
-                qty: item['qty'],
-                price: item['price'],
-                isPromo: item['is_promo'] == true || item['is_promo'] == 1,
-                otherQty: item['other_qty'] ?? 0,
-              );
-            }
-          }
+        for (var item in items) {
+          await localDb.insertTransactionItem(
+            id: item['id'],
+            transactionId: t['id'],
+            productId: item['product_id'],
+            productName: item['product_name'],
+            qty: item['qty'],
+            price: (item['price'] as num).toDouble(),
+            isPromo: item['is_promo'] ?? false,
+            otherQty: item['other_qty'] ?? 0,
+          );
         }
-
-        // Refresh all transactions after merge
-        transactions = await localDb.getTransactionsWithItems();
-            } catch (e) {
-        print("Failed to fetch online transactions: $e");
       }
     }
-
-    setState(() {});
+  } catch (e) {
+    print("Error syncing online transactions: $e");
   }
+}
 
-  Future<void> chooseDateRange() async {
-    final now = DateTime.now();
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(now.year - 2),
-      lastDate: DateTime(now.year + 1),
-      initialDateRange: selectedDateRange ?? DateTimeRange(
-        start: now.subtract(const Duration(days: 7)), 
-        end: now,
-      ),
-    );
 
-    if (picked != null) {
-      selectedDateRange = picked;
-      filterByDate();
-    }
-  }
+  // ------------------ LOAD AND SORT TRANSACTIONS ------------------
+  Future<void> loadTransactions() async {
+    await syncOnlineTransactions();
 
-  void filterByDate() {
-    if (selectedDateRange == null) return;
+    final data = await localDb.getAllTransactions();
 
-    final start = selectedDateRange!.start;
-    final end = selectedDateRange!.end.add(const Duration(days: 1));
+    // Make a mutable copy
+    final transactionsList = List<Map<String, dynamic>>.from(data);
+
+    // Sort by created_at descending
+    transactionsList.sort((a, b) {
+      final dateA = DateTime.tryParse(a['created_at'] ?? '') ?? DateTime(1970);
+      final dateB = DateTime.tryParse(b['created_at'] ?? '') ?? DateTime(1970);
+      return dateB.compareTo(dateA); // newest first
+    });
 
     setState(() {
-      transactions = transactions
-          .where((t) {
-            final createdAt = DateTime.parse(t['created_at']);
-            return createdAt.isAfter(start.subtract(const Duration(seconds: 1))) &&
-                   createdAt.isBefore(end);
-          })
-          .toList();
+      transactions = transactionsList;
     });
   }
 
-  String formatDate(String dateStr) {
-    final date = DateTime.parse(dateStr);
-    return DateFormat('yyyy-MM-dd HH:mm').format(date);
+  Future<List<Map<String, dynamic>>> getTransactionItems(int transactionId) async {
+    return await localDb.getTransactionItems(transactionId);
   }
 
+  // ------------------ BUILD UI ------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Transaction History"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.date_range),
-            onPressed: chooseDateRange,
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: loadTransactions,
-          ),
-        ],
+        title: const Text('Transaction History'),
+        backgroundColor: Colors.white,
+        elevation: 1,
+        centerTitle: true,
       ),
       body: transactions.isEmpty
-          ? const Center(child: Text("No transactions found"))
+          ? const Center(child: Text('No transactions yet.'))
           : ListView.builder(
               itemCount: transactions.length,
               itemBuilder: (context, index) {
-                final t = transactions[index];
-                // Get items for this transaction
-                final items = (t['items'] ?? []) as List<dynamic>;
-
-                return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  child: ExpansionTile(
-                    title: Text(
-                        "Transaction #${t['transaction_id']} | ₱${t['total']}"),
-                    subtitle: Text(
-                        "Cash: ₱${t['cash']} | Change: ₱${t['change']} | ${formatDate(t['created_at'])}"),
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Column(
-                          children: [
-                            for (var item in items)
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text("${item['product_name']} x${item['qty']}"),
-                                  Text("₱${item['price']}"),
-                                ],
-                              ),
-                          ],
+                final trx = transactions[index];
+                return FutureBuilder<List<Map<String, dynamic>>>(
+                  future: getTransactionItems(trx['id']),
+                  builder: (context, snapshot) {
+                    final items = snapshot.data ?? [];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: ExpansionTile(
+                        title: Text(
+                          "₱${trx['total'].toStringAsFixed(2)}",
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
+                        subtitle: Text(
+                          "Cash: ₱${trx['cash'].toStringAsFixed(2)} | Change: ₱${trx['change'].toStringAsFixed(2)}\nDate: ${trx['created_at'] ?? ''}",
+                        ),
+                        children: items.map((item) {
+                          final isPromo = (item['is_promo'] == 1 || item['is_promo'] == true);
+                          final totalPrice = isPromo
+                              ? item['price'] as double
+                              : (item['qty'] * (item['price'] as double));
+
+                          return ListTile(
+                            title: Text(item['product_name']),
+                            subtitle: Text(
+                                "Qty: ${item['qty']} | Price: ₱${(item['price'] as double).toStringAsFixed(2)}"),
+                            trailing: Text(
+                              "₱${totalPrice.toStringAsFixed(2)}",
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          );
+                        }).toList(),
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 );
               },
             ),

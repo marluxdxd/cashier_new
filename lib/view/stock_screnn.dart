@@ -85,56 +85,58 @@ Future<void> checkStockQueueTable() async {
   }
 
   // Update stock locally and queue for online sync
-  Future<void> updateStock(Productclass product, int newStock) async {
-    // Update local DB
-    await localDb.updateProductStock(product.id, newStock);
+Future<void> updateStock(Productclass product, int newStock) async {
+  // Calculate adjustment
+  final int diff = newStock - product.stock;
+  if (diff == 0) return;
 
-    // Insert to local queue
-    await localDb.insertStockUpdateQueue(product.id, newStock);
+  // Update local DB stock
+  await localDb.updateProductStock(product.id, newStock);
 
-    if (await isOnline()) {
-      try {
-        // Try immediate online sync
-        final response = await Supabase.instance.client
-            .from('products')
-            .update({'stock': newStock})
-            .eq('id', product.id)
-            .select();
-        print("Supabase updated: $response");
-        await localDb.markStockUpdateSynced(product.id);
-      } catch (e) {
-        print("Failed online update, queued: $e");
-      }
-    }
+  // Queue stock adjustment
+  await localDb.insertStockUpdateQueue1(
+    productId: product.id,
+    qty: diff.abs(),
+    type: diff > 0 ? 'ADJUSTMENT_ADD' : 'ADJUSTMENT_SUB',
+  );
 
-    setState(() {
-      product.stock = newStock;
-    });
-  }
+  setState(() {
+    product.stock = newStock;
+  });
+}
+
 
   // Sync queued updates with loading overlay
   Future<void> _syncWithLoading() async {
-    if (!await isOnline()) return;
+  if (!await isOnline()) return;
 
-    isSyncing.value = true;
-    final queuedUpdates = await localDb.getUnsyncedStockUpdates();
+  isSyncing.value = true;
 
-    for (var update in queuedUpdates) {
-      try {
-        final response = await Supabase.instance.client
-            .from('products')
-            .update({'stock': update['new_stock']})
-            .eq('id', update['product_id'])
-            .select();
-        print("Synced queued update: $response");
-        await localDb.markStockUpdateSynced(update['id']);
-      } catch (e) {
-        print("Failed to sync queued update: $e");
-      }
+  final queuedUpdates = await localDb.getUnsyncedStockUpdates();
+
+  for (var update in queuedUpdates) {
+    try {
+      final int productId = update['product_id'];
+      final int queueId = update['id'];
+
+      // 🔥 Always get FINAL stock from local DB
+      final int? localStock = await localDb.getProductStock(productId);
+      if (localStock == null) continue;
+
+      await Supabase.instance.client
+          .from('products')
+          .update({'stock': localStock})
+          .eq('id', productId);
+
+      await localDb.markStockUpdateSynced(queueId);
+    } catch (e) {
+      print("Failed to sync queued update: $e");
     }
-
-    isSyncing.value = false;
   }
+
+  isSyncing.value = false;
+}
+
 
   // Initial auto-sync on screen load if online
   Future<void> _autoSyncOnOnline() async {
