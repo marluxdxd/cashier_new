@@ -38,16 +38,19 @@ class _StockScreenState extends State<StockScreen> {
       }
     });
   }
-Future<void> checkStockQueueTable() async {
-  final db = await localDb.database;
-  final result = await db.rawQuery(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='stock_update_queue'");
-  if (result.isNotEmpty) {
-    print("✅ Table 'stock_update_queue' exists!");
-  } else {
-    print("❌ Table 'stock_update_queue' does NOT exist!");
+
+  Future<void> checkStockQueueTable() async {
+    final db = await localDb.database;
+    final result = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='stock_update_queue'",
+    );
+    if (result.isNotEmpty) {
+      print("✅ Table 'stock_update_queue' exists!");
+    } else {
+      print("❌ Table 'stock_update_queue' does NOT exist!");
+    }
   }
-}
+
   Future<bool> isOnline() async {
     try {
       final result = await InternetAddress.lookup('example.com');
@@ -60,14 +63,16 @@ Future<void> checkStockQueueTable() async {
   Future<void> loadProducts() async {
     final data = await localDb.getProducts();
     final loadedProducts = data
-        .map((e) => Productclass(
-              id: e['id'],
-              name: e['name'],
-              price: e['price'],
-              stock: e['stock'],
-              isPromo: e['is_promo'] == 1,
-              otherQty: e['other_qty'] ?? 0,
-            ))
+        .map(
+          (e) => Productclass(
+            id: e['id'],
+            name: e['name'],
+            price: e['price'],
+            stock: e['stock'],
+            isPromo: e['is_promo'] == 1,
+            otherQty: e['other_qty'] ?? 0,
+          ),
+        )
         .toList();
     loadedProducts.sort((a, b) => a.name.compareTo(b.name));
     setState(() {
@@ -79,64 +84,63 @@ Future<void> checkStockQueueTable() async {
   void filterProducts() {
     final query = searchController.text.toLowerCase();
     setState(() {
-      filteredProducts =
-          products.where((p) => p.name.toLowerCase().contains(query)).toList();
+      filteredProducts = products
+          .where((p) => p.name.toLowerCase().contains(query))
+          .toList();
     });
   }
 
   // Update stock locally and queue for online sync
-Future<void> updateStock(Productclass product, int newStock) async {
-  // Calculate adjustment
-  final int diff = newStock - product.stock;
-  if (diff == 0) return;
+  Future<void> updateStock(Productclass product, int newStock) async {
+    // Calculate adjustment
+    final int diff = newStock - product.stock;
+    if (diff == 0) return;
 
-  // Update local DB stock
-  await localDb.updateProductStock(product.id, newStock);
+    // Update local DB stock
+    await localDb.updateProductStock(product.id, newStock);
 
-  // Queue stock adjustment
-  await localDb.insertStockUpdateQueue1(
-    productId: product.id,
-    qty: diff.abs(),
-    type: diff > 0 ? 'ADJUSTMENT_ADD' : 'ADJUSTMENT_SUB',
-  );
+    // Queue stock adjustment
+    await localDb.insertStockUpdateQueue1(
+      productId: product.id,
+      qty: diff.abs(),
+      type: diff > 0 ? 'ADJUSTMENT_ADD' : 'ADJUSTMENT_SUB',
+    );
 
-  setState(() {
-    product.stock = newStock;
-  });
-}
-
+    setState(() {
+      product.stock = newStock;
+    });
+  }
 
   // Sync queued updates with loading overlay
   Future<void> _syncWithLoading() async {
-  if (!await isOnline()) return;
+    if (!await isOnline()) return;
 
-  isSyncing.value = true;
+    isSyncing.value = true;
 
-  final queuedUpdates = await localDb.getUnsyncedStockUpdates();
+    final queuedUpdates = await localDb.getUnsyncedStockUpdates();
 
-  for (var update in queuedUpdates) {
-    try {
-      final int productId = update['product_id'];
-      final int queueId = update['id'];
+    for (var update in queuedUpdates) {
+      try {
+        final int productId = update['product_id'];
+        final int queueId = update['id'];
 
-      // 🔥 Always get FINAL stock from local DB
-      final int? localStock = await localDb.getProductStock(productId);
-      if (localStock == null) continue;
+        // 🔥 Always get FINAL stock from local DB
+        final int? localStock = await localDb.getProductStock(productId);
+        if (localStock == null) continue;
 
-      await Supabase.instance.client
-          .from('products')
-          .update({'stock': localStock})
-          .eq('id', productId);
+        await Supabase.instance.client
+            .from('products')
+            .update({'stock': localStock})
+            .eq('id', productId);
 
-      await localDb.markStockUpdateSynced(queueId);
-    } catch (e) {
-      print("Failed to sync queued update: $e");
+        await localDb.markStockUpdateSynced(queueId);
+      } catch (e) {
+        print("Failed to sync queued update: $e");
+      }
     }
+
+    isSyncing.value = false;
   }
-
-  isSyncing.value = false;
-}
-
 
   // Initial auto-sync on screen load if online
   Future<void> _autoSyncOnOnline() async {
@@ -157,8 +161,9 @@ Future<void> updateStock(Productclass product, int newStock) async {
                 icon: Icon(Icons.sync),
                 onPressed: () async {
                   await _syncWithLoading();
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(SnackBar(content: Text("Sync completed")));
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text("Sync completed")));
                 },
               ),
             ],
@@ -174,7 +179,10 @@ Future<void> updateStock(Productclass product, int newStock) async {
                     prefixIcon: Icon(Icons.search),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.blueAccent, width: 2),
+                      borderSide: BorderSide(
+                        color: Colors.blueAccent,
+                        width: 2,
+                      ),
                     ),
                   ),
                 ),
@@ -184,12 +192,15 @@ Future<void> updateStock(Productclass product, int newStock) async {
                   itemCount: filteredProducts.length,
                   itemBuilder: (context, index) {
                     final product = filteredProducts[index];
-                    final controller =
-                        TextEditingController(text: product.stock.toString());
+                    final controller = TextEditingController(
+                      text: product.stock.toString(),
+                    );
 
                     return Padding(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       child: Card(
                         elevation: 2,
                         shape: RoundedRectangleBorder(
@@ -198,7 +209,8 @@ Future<void> updateStock(Productclass product, int newStock) async {
                         child: ListTile(
                           title: Text(product.name),
                           subtitle: Text(
-                              "Price: ₱${product.price} | Stock: ${product.stock}"),
+                            "Price: ₱${product.price} | Stock: ${product.stock}",
+                          ),
                           trailing: SizedBox(
                             width: 110,
                             child: Row(
@@ -210,70 +222,94 @@ Future<void> updateStock(Productclass product, int newStock) async {
                                     decoration: InputDecoration(
                                       hintText: 'Stock',
                                       contentPadding: EdgeInsets.symmetric(
-                                          vertical: 8, horizontal: 8),
+                                        vertical: 8,
+                                        horizontal: 8,
+                                      ),
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                     ),
                                   ),
                                 ),
-                                StatefulBuilder(builder: (context, setInnerState) {
-                                  bool isSaving = false;
+                                StatefulBuilder(
+                                  builder: (context, setInnerState) {
+                                    bool isSaving = false;
 
-                                  return IconButton(
-                                    icon: isSaving
-                                        ? SizedBox(
-                                            width: 24,
-                                            height: 24,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
+                                    return IconButton(
+                                      icon: isSaving
+                                          ? SizedBox(
+                                              width: 24,
+                                              height: 24,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : Icon(
+                                              Icons.check,
+                                              color: Colors.green,
                                             ),
-                                          )
-                                        : Icon(Icons.check, color: Colors.green),
-                                    onPressed: () async {
-                                      final newStock =
-                                          int.tryParse(controller.text);
-                                      if (newStock == null) return;
+                                      onPressed: () async {
+                                        final newStock = int.tryParse(
+                                          controller.text,
+                                        );
+                                        if (newStock == null) return;
 
-                                      // Confirm dialog
-                                      bool confirmed = await showDialog(
-                                            context: context,
-                                            builder: (context) => AlertDialog(
-                                              title: Text("Confirm Stock Update"),
-                                              content: Text(
-                                                  "Update stock of ${product.name} from ${product.stock} to $newStock?"),
-                                              actions: [
-                                                TextButton(
-                                                  onPressed: () =>
-                                                      Navigator.pop(context, false),
-                                                  child: Text("Cancel"),
+                                        bool confirmed =
+                                            await showDialog(
+                                              context: context,
+                                              builder: (context) => AlertDialog(
+                                                title: Text(
+                                                  "Confirm Stock Update",
                                                 ),
-                                                ElevatedButton(
-                                                  onPressed: () =>
-                                                      Navigator.pop(context, true),
-                                                  child: Text("Confirm"),
+                                                content: Text(
+                                                  "Update stock of ${product.name} from ${product.stock} to $newStock?",
                                                 ),
-                                              ],
-                                            ),
-                                          ) ??
-                                          false;
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(
+                                                          context,
+                                                          false,
+                                                        ),
+                                                    child: Text("Cancel"),
+                                                  ),
+                                                  ElevatedButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(
+                                                          context,
+                                                          true,
+                                                        ),
+                                                    child: Text("Confirm"),
+                                                  ),
+                                                ],
+                                              ),
+                                            ) ??
+                                            false;
 
-                                      if (!confirmed) return;
+                                        if (!confirmed) return;
 
-                                      setInnerState(() => isSaving = true);
+                                        setInnerState(() => isSaving = true);
 
-                                      await updateStock(product, newStock);
+                                        await updateStock(product, newStock);
 
-                                      setInnerState(() => isSaving = false);
+                                        // 🔥 AUTO SYNC HERE
+                                        await _syncWithLoading();
 
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
+                                        setInnerState(() => isSaving = false);
+
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
                                             content: Text(
-                                                "Stock updated for ${product.name}")),
-                                      );
-                                    },
-                                  );
-                                }),
+                                              "Stock updated for ${product.name}",
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
                               ],
                             ),
                           ),
@@ -293,9 +329,7 @@ Future<void> updateStock(Productclass product, int newStock) async {
             if (!loading) return SizedBox.shrink();
             return Container(
               color: Colors.black.withOpacity(0.5),
-              child: Center(
-                child: CircularProgressIndicator(),
-              ),
+              child: Center(child: CircularProgressIndicator()),
             );
           },
         ),

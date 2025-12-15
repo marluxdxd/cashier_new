@@ -43,14 +43,12 @@ void initState() {
   syncProducts();
 
   // Listen for connection changes
-  _listener = InternetConnectionChecker().onStatusChange.listen((status) async {
-    if (status == InternetConnectionStatus.connected) {
-      final localDb = LocalDatabase();
-      await localDb.syncQueuedStockWithServer(transactionService);
-      await syncProducts();
-    }
-  });
-
+_listener = InternetConnectionChecker().onStatusChange.listen((status) async {
+  if (status == InternetConnectionStatus.connected) {
+    await transactionService.syncOfflineTransactions(); // 👈 IMPORTANT
+    await syncProducts();
+  }
+});
   _connectivityListener = Connectivity().onConnectivityChanged.listen((status) {
     if (status != ConnectivityResult.none) syncProducts();
   });
@@ -63,7 +61,7 @@ Future<void> syncProducts() async {
     syncSuccess = false;
     matchedProducts.clear(); // ← important
   });
-
+ print("isSyncing: $isSyncing, syncSuccess: $syncSuccess");
   try {
     await productService.syncOfflineProducts();
     final latestProducts = await productService.getAllProducts();
@@ -72,13 +70,15 @@ Future<void> syncProducts() async {
       matchedProducts = latestProducts;
       syncSuccess = true;
     });
-
+  print("Sync completed successfully!");
+    print("matchedProducts count: ${matchedProducts.length}");
 
   } catch (e) {
     print("Error during product sync: $e");
   } finally {
     setState(() => isSyncing = false);
   }
+    print("Sync process ended. isSyncing: $isSyncing, syncSuccess: $syncSuccess");
 }
 
 
@@ -335,13 +335,13 @@ Future<void> syncProducts() async {
                   print("OFFLINE MODE → Saving to Local DB");
 
                   int localTrxId = await localDb.insertTransaction(
-                    id: DateTime.now().millisecondsSinceEpoch,
-                    total: totalBill,
-                    cash: cash,
-                    change: change,
-                    createdAt: timestamp,
-                  );
-
+  id: DateTime.now().millisecondsSinceEpoch,
+  total: totalBill,
+  cash: cash,
+  change: change,
+  createdAt: timestamp,
+  isSynced: 0, // 👈 offline pa
+);
                   for (var row in rows) {
                     if (row.product != null) {
                       int qty = row.isPromo ? row.otherQty : row.qty;
@@ -394,6 +394,15 @@ Future<void> syncProducts() async {
                     cash: cash,
                     change: change,
                   );
+                  // 🔥 SAVE LOCALLY AS SYNCED
+await localDb.insertTransaction(
+  id: transactionId,
+  total: totalBill,
+  cash: cash,
+  change: change,
+  createdAt: timestamp,
+  isSynced: 1, // 👈 IMPORTANT
+);
 
                   for (var row in rows) {
                     if (row.product != null) {

@@ -167,14 +167,12 @@ class LocalDatabase {
   }
 
   //BAG-O----------------------------------------------------------------
-  Future<List<Map<String, dynamic>>> getUnsyncedTransactions() async {
-    final db = await database;
-    return await db.query(
-      'transactions',
-      where: 'is_synced = ?',
-      whereArgs: [0],
-    );
-  }
+ Future<List<Map<String, dynamic>>> getUnsyncedTransactions() async {
+  final db = await database;
+  return await db.rawQuery(
+    'SELECT * FROM transactions WHERE is_synced = 0',
+  );
+}
 
   Future<List<Map<String, dynamic>>> getItemsForTransaction(int trxId) async {
     final db = await database;
@@ -495,22 +493,30 @@ Future<int> insertStockUpdateQueue1({
 
   // ------------------- TRANSACTIONS -------------------
 
-  Future<int> insertTransaction({
-    required int id,
-    required double total,
-    required double cash,
-    required double change,
-    String? createdAt,
-  }) async {
-    final db = await database;
-    return await db.insert('transactions', {
+Future<int> insertTransaction({
+  required int id,
+  required double total,
+  required double cash,
+  required double change,
+  String? createdAt,
+  int isSynced = 0, // 👈 NEW
+}) async {
+  final db = await database;
+  await db.insert(
+    'transactions',
+    {
       'id': id,
       'total': total,
       'cash': cash,
       'change': change,
-      'created_at': createdAt ?? DateTime.now().toIso8601String(),
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
-  }
+      'created_at': createdAt,
+      'is_synced': isSynced,
+    },
+    conflictAlgorithm: ConflictAlgorithm.ignore,
+  );
+  return id;
+}
+
 
   Future<List<Map<String, dynamic>>> getTransactions() async {
     final db = await database;

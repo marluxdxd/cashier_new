@@ -14,44 +14,52 @@ class ProductService {
   }
 
   Future<List<Productclass>> getAllProducts() async {
-    final online = await isOnline();
+  final online = await isOnline();
 
-    if (online) {
-      // Fetch from Supabase
-      final data = await supabase.from('products').select();
+  if (online) {
+    // Fetch from Supabase
+    final data = await supabase.from('products').select();
 
-      // Optional: update local DB
-      for (var p in data) {
-        await localDb.insertProduct(
-          id: p['id'] as int,
-          name: p['name'] as String,
-          price: (p['price'] as num).toDouble(),
-          stock: p['stock'] as int,
-          isPromo: p['is_promo'] as bool? ?? false,
-          otherQty: p['other_qty'] as int? ?? 0,
-        );
-      }
+    for (var p in data) {
+      final int productId = p['id'] as int;
 
-      return (data as List<dynamic>)
-          .map((e) => Productclass.fromMap(e as Map<String, dynamic>))
-          .toList();
-    } else {
-      // Fetch from local DB
-      final localData = await localDb.getProducts();
-      return localData
-          .map(
-            (e) => Productclass(
-              id: e['id'],
-              name: e['name'],
-              price: e['price'],
-              stock: e['stock'],
-              isPromo: e['is_promo'] == 1,
-              otherQty: e['other_qty'] ?? 0,
-            ),
-          )
-          .toList();
+      // 🔑 CHECK IF PRODUCT EXISTS LOCALLY
+      final int? localStock = await localDb.getProductStock(productId);
+
+      await localDb.insertProduct(
+        id: productId,
+        name: p['name'] as String,
+        price: (p['price'] as num).toDouble(),
+
+        // ✅ PROTECT LOCAL STOCK
+        stock: localStock ?? (p['stock'] as int),
+
+        isPromo: p['is_promo'] as bool? ?? false,
+        otherQty: p['other_qty'] as int? ?? 0,
+      );
     }
+
+    return (data as List<dynamic>)
+        .map((e) => Productclass.fromMap(e as Map<String, dynamic>))
+        .toList();
+  } else {
+    // Fetch from local DB
+    final localData = await localDb.getProducts();
+    return localData
+        .map(
+          (e) => Productclass(
+            id: e['id'],
+            name: e['name'],
+            price: e['price'],
+            stock: e['stock'],
+            isPromo: e['is_promo'] == 1,
+            otherQty: e['other_qty'] ?? 0,
+          ),
+        )
+        .toList();
   }
+}
+
 
   // Get all products from local DB
   Future<List<Map<String, dynamic>>> getLocalProducts() async {
