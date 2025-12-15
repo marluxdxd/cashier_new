@@ -367,7 +367,7 @@ Future<int> insertStockUpdateQueue1({
         // Products table
         await db.execute('''
           CREATE TABLE products(
-            id INTEGER PRIMARY KEY,
+            id INTEGER PRIMARY KEY, 
             name TEXT NOT NULL,
             price REAL NOT NULL,
             stock INTEGER NOT NULL,
