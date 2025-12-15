@@ -13,7 +13,6 @@ import 'package:cashier/widget/appdrawer.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'dart:async';
 
-
 class Home extends StatefulWidget {
   const Home({super.key});
 
@@ -35,52 +34,55 @@ class _HomeState extends State<Home> {
 
   bool isSyncing = false; // Loading indicator
 
-@override
-void initState() {
-  super.initState();
+  @override
+  void initState() {
+    super.initState();
 
-  // Sync offline products on init → this will also load all products
-  syncProducts();
+    // Sync offline products on init → this will also load all products
+    syncProducts();
 
-  // Listen for connection changes
-_listener = InternetConnectionChecker().onStatusChange.listen((status) async {
-  if (status == InternetConnectionStatus.connected) {
-    await transactionService.syncOfflineTransactions(); // 👈 IMPORTANT
-    await syncProducts();
-  }
-});
-  _connectivityListener = Connectivity().onConnectivityChanged.listen((status) {
-    if (status != ConnectivityResult.none) syncProducts();
-  });
-}
-
-
-Future<void> syncProducts() async {
-  setState(() {
-    isSyncing = true;
-    syncSuccess = false;
-    matchedProducts.clear(); // ← important
-  });
- print("isSyncing: $isSyncing, syncSuccess: $syncSuccess");
-  try {
-    await productService.syncOfflineProducts();
-    final latestProducts = await productService.getAllProducts();
-
-    setState(() {
-      matchedProducts = latestProducts;
-      syncSuccess = true;
+    // Listen for connection changes
+    _listener = InternetConnectionChecker().onStatusChange.listen((
+      status,
+    ) async {
+      if (status == InternetConnectionStatus.connected) {
+        await transactionService.syncOfflineTransactions(); // 👈 IMPORTANT
+        await syncProducts();
+      }
     });
-  print("Sync completed successfully!");
-    print("matchedProducts count: ${matchedProducts.length}");
-
-  } catch (e) {
-    print("Error during product sync: $e");
-  } finally {
-    setState(() => isSyncing = false);
+    _connectivityListener = Connectivity().onConnectivityChanged.listen((
+      status,
+    ) {
+      if (status != ConnectivityResult.none) syncProducts();
+    });
   }
-    print("Sync process ended. isSyncing: $isSyncing, syncSuccess: $syncSuccess");
-}
 
+  Future<void> syncProducts() async {
+    setState(() {
+      isSyncing = true;
+      syncSuccess = false;
+      matchedProducts.clear(); // ← important
+    });
+    print("isSyncing: $isSyncing, syncSuccess: $syncSuccess");
+    try {
+      await productService.syncOfflineProducts();
+      final latestProducts = await productService.getAllProducts();
+
+      setState(() {
+        matchedProducts = latestProducts;
+        syncSuccess = true;
+      });
+      print("Sync completed successfully!");
+      print("matchedProducts count: ${matchedProducts.length}");
+    } catch (e) {
+      print("Error during product sync: $e");
+    } finally {
+      setState(() => isSyncing = false);
+    }
+    print(
+      "Sync process ended. isSyncing: $isSyncing, syncSuccess: $syncSuccess",
+    );
+  }
 
   @override
   void dispose() {
@@ -139,15 +141,17 @@ Future<void> syncProducts() async {
               onTap: () async {
                 final selectedProduct =
                     await showModalBottomSheet<Productclass>(
-                  context: context,
-                  isScrollControlled: true,
-                  builder: (_) => Productbottomsheet(),
-                );
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (_) => Productbottomsheet(),
+                    );
                 if (selectedProduct != null) {
                   setState(() {
                     row.product = selectedProduct;
                     row.isPromo = selectedProduct.isPromo;
-                    row.otherQty = selectedProduct.isPromo ? selectedProduct.otherQty : 0;
+                    row.otherQty = selectedProduct.isPromo
+                        ? selectedProduct.otherQty
+                        : 0;
 
                     if (row == rows.last) _addEmptyRow();
                   });
@@ -192,7 +196,9 @@ Future<void> syncProducts() async {
                   color: row.isPromo ? Colors.grey[200] : Colors.white,
                 ),
                 child: Text(
-                  row.isPromo ? row.otherQty.toString() : (row.qty == 0 ? "Qty" : row.qty.toString()),
+                  row.isPromo
+                      ? row.otherQty.toString()
+                      : (row.qty == 0 ? "Qty" : row.qty.toString()),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -232,17 +238,17 @@ Future<void> syncProducts() async {
         elevation: 1.0,
         title: Text('Sari2x Store'),
         centerTitle: true,
-          actions: [
-            if (isSyncing)
-    const Padding(
-      padding: EdgeInsets.all(12),
-      child: CircularProgressIndicator(color: Colors.red),
-    )
-  else if (syncSuccess)
-    const Padding(
-      padding: EdgeInsets.all(12),
-      child: Icon(Icons.check_circle, color: Colors.green, size: 30),
-    ),
+        actions: [
+          if (isSyncing)
+            const Padding(
+              padding: EdgeInsets.all(12),
+              child: CircularProgressIndicator(color: Colors.red),
+            )
+          else if (syncSuccess)
+            const Padding(
+              padding: EdgeInsets.all(12),
+              child: Icon(Icons.check_circle, color: Colors.green, size: 30),
+            ),
           IconButton(
             onPressed: () {},
             icon: Icon(Icons.search, color: Colors.black, size: 30),
@@ -329,34 +335,40 @@ Future<void> syncProducts() async {
                 );
                 String timestamp = getPhilippineTimestampFormatted();
 
-
                 if (!online) {
                   // OFFLINE MODE
                   print("OFFLINE MODE → Saving to Local DB");
 
                   int localTrxId = await localDb.insertTransaction(
-  id: DateTime.now().millisecondsSinceEpoch,
-  total: totalBill,
-  cash: cash,
-  change: change,
-  createdAt: timestamp,
-  isSynced: 0, // 👈 offline pa
-);
+                    id: DateTime.now().millisecondsSinceEpoch,
+                    total: totalBill,
+                    cash: cash,
+                    change: change,
+                    createdAt: timestamp,
+                    isSynced: 0, // 👈 offline pa
+                  );
                   for (var row in rows) {
                     if (row.product != null) {
                       int qty = row.isPromo ? row.otherQty : row.qty;
-                      int? currentStock = await localDb.getProductStock(row.product!.id);
+                      int? currentStock = await localDb.getProductStock(
+                        row.product!.id,
+                      );
                       if (currentStock == null) return;
                       if (currentStock < qty) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text("Insufficient stock for ${row.product!.name}"),
+                            content: Text(
+                              "Insufficient stock for ${row.product!.name}",
+                            ),
                           ),
                         );
                         return;
                       }
                       int newStock = currentStock - qty;
-                      await localDb.updateProductStock(row.product!.id, newStock);
+                      await localDb.updateProductStock(
+                        row.product!.id,
+                        newStock,
+                      );
                       await localDb.insertStockUpdateQueue1(
                         productId: row.product!.id,
                         qty: qty,
@@ -388,54 +400,85 @@ Future<void> syncProducts() async {
                 }
 
                 // ONLINE MODE
-                try {
-                  int transactionId = await transactionService.saveTransaction(
-                    total: totalBill,
-                    cash: cash,
-                    change: change,
-                  );
-                  // 🔥 SAVE LOCALLY AS SYNCED
-await localDb.insertTransaction(
-  id: transactionId,
-  total: totalBill,
-  cash: cash,
-  change: change,
-  createdAt: timestamp,
-  isSynced: 1, // 👈 IMPORTANT
-);
+try {
+  int transactionId = await transactionService.saveTransaction(
+    total: totalBill,
+    cash: cash,
+    change: change,
+  );
 
-                  for (var row in rows) {
-                    if (row.product != null) {
-                      int qty = row.isPromo ? row.otherQty : row.qty;
-                      await transactionService.saveTransactionItem(
-                        transactionId: transactionId,
-                        product: row.product!,
-                        qty: qty,
-                        isPromo: row.isPromo,
-                        otherQty: row.otherQty,
-                      );
-                      await transactionService.updateStock(
-                        productId: row.product!.id,
-                        newStock: row.product!.stock - qty,
-                      );
-                    }
-                  }
+  // 🔥 SAVE TRANSACTION LOCALLY AS SYNCED
+  await localDb.insertTransaction(
+    id: transactionId,
+    total: totalBill,
+    cash: cash,
+    change: change,
+    createdAt: timestamp,
+    isSynced: 1,
+  );
 
-                  showDialog(
-                    context: context,
-                    builder: (_) => Sukli(change: change, timestamp: timestamp),
-                  );
+  for (var row in rows) {
+    if (row.product != null) {
+      int qty = row.isPromo ? row.otherQty : row.qty;
 
-                  customerCashController.clear();
-                  setState(() {
-                    rows = [POSRow()];
-                  });
-                } catch (e) {
-                  print("Error saving transaction: $e");
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Failed to save transaction.")),
-                  );
-                }
+      // 🔥 GET CURRENT LOCAL STOCK
+      int? currentStock =
+          await localDb.getProductStock(row.product!.id);
+      if (currentStock == null) return;
+
+      if (currentStock < qty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Insufficient stock for ${row.product!.name}",
+            ),
+          ),
+        );
+        return;
+      }
+
+      int newStock = currentStock - qty;
+
+      // ✅ UPDATE LOCAL STOCK
+      await localDb.updateProductStock(
+        row.product!.id,
+        newStock,
+      );
+
+      // ✅ QUEUE STOCK UPDATE (SAME AS OFFLINE)
+      await localDb.insertStockUpdateQueue1(
+        productId: row.product!.id,
+        qty: qty,
+        type: 'SALE',
+      );
+
+      // 🔥 SAVE TRANSACTION ITEM (ONLINE)
+      await transactionService.saveTransactionItem(
+        transactionId: transactionId,
+        product: row.product!,
+        qty: qty,
+        isPromo: row.isPromo,
+        otherQty: row.otherQty,
+      );
+    }
+  }
+
+  showDialog(
+    context: context,
+    builder: (_) => Sukli(change: change, timestamp: timestamp),
+  );
+
+  customerCashController.clear();
+  setState(() {
+    rows = [POSRow()];
+  });
+} catch (e) {
+  print("Error saving transaction: $e");
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text("Failed to save transaction.")),
+  );
+}
+
               },
             ),
           ],
