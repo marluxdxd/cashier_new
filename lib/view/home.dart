@@ -400,85 +400,85 @@ class _HomeState extends State<Home> {
                 }
 
                 // ONLINE MODE
-try {
-  int transactionId = await transactionService.saveTransaction(
-    total: totalBill,
-    cash: cash,
-    change: change,
-  );
+                try {
+                  int transactionId = await transactionService.saveTransaction(
+                    total: totalBill,
+                    cash: cash,
+                    change: change,
+                  );
 
-  // 🔥 SAVE TRANSACTION LOCALLY AS SYNCED
-  await localDb.insertTransaction(
-    id: transactionId,
-    total: totalBill,
-    cash: cash,
-    change: change,
-    createdAt: timestamp,
-    isSynced: 1,
-  );
+                  // 🔥 SAVE TRANSACTION LOCALLY AS SYNCED
+                  await localDb.insertTransaction(
+                    id: transactionId,
+                    total: totalBill,
+                    cash: cash,
+                    change: change,
+                    createdAt: timestamp,
+                    isSynced: 1,
+                  );
 
-  for (var row in rows) {
-    if (row.product != null) {
-      int qty = row.isPromo ? row.otherQty : row.qty;
+                  for (var row in rows) {
+                    if (row.product != null) {
+                      int qty = row.isPromo ? row.otherQty : row.qty;
 
-      // 🔥 GET CURRENT LOCAL STOCK
-      int? currentStock =
-          await localDb.getProductStock(row.product!.id);
-      if (currentStock == null) return;
+                      // 🔥 GET CURRENT LOCAL STOCK
+                      int? currentStock = await localDb.getProductStock(
+                        row.product!.id,
+                      );
+                      if (currentStock == null) return;
 
-      if (currentStock < qty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Insufficient stock for ${row.product!.name}",
-            ),
-          ),
-        );
-        return;
-      }
+                      if (currentStock < qty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              "Insufficient stock for ${row.product!.name}",
+                            ),
+                          ),
+                        );
+                        return;
+                      }
 
-      int newStock = currentStock - qty;
+                      int newStock = currentStock - qty;
 
-      // ✅ UPDATE LOCAL STOCK
-      await localDb.updateProductStock(
-        row.product!.id,
-        newStock,
-      );
+                      // ✅ UPDATE LOCAL STOCK
+                      await localDb.updateProductStock(
+                        row.product!.id,
+                        newStock,
+                      );
 
-      // ✅ QUEUE STOCK UPDATE (SAME AS OFFLINE)
-      await localDb.insertStockUpdateQueue1(
-        productId: row.product!.id,
-        qty: qty,
-        type: 'SALE',
-      );
+                      // ✅ QUEUE STOCK UPDATE (SAME AS OFFLINE)
+                      await localDb.insertStockUpdateQueue1(
+                        productId: row.product!.id,
+                        qty: qty,
+                        type: 'SALE',
+                      );
 
-      // 🔥 SAVE TRANSACTION ITEM (ONLINE)
-      await transactionService.saveTransactionItem(
-        transactionId: transactionId,
-        product: row.product!,
-        qty: qty,
-        isPromo: row.isPromo,
-        otherQty: row.otherQty,
-      );
-    }
-  }
+                      // 🔥 SAVE TRANSACTION ITEM (ONLINE)
+                      await transactionService.saveTransactionItem(
+                        transactionId: transactionId,
+                        product: row.product!,
+                        qty: qty,
+                        isPromo: row.isPromo,
+                        otherQty: row.otherQty,
+                      );
+                    }
+                  }
 
-  showDialog(
-    context: context,
-    builder: (_) => Sukli(change: change, timestamp: timestamp),
-  );
+                  showDialog(
+                    context: context,
+                    builder: (_) => Sukli(change: change, timestamp: timestamp),
+                  );
 
-  customerCashController.clear();
-  setState(() {
-    rows = [POSRow()];
-  });
-} catch (e) {
-  print("Error saving transaction: $e");
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text("Failed to save transaction.")),
-  );
-}
-
+                  customerCashController.clear();
+                  setState(() {
+                    rows = [POSRow()];
+                  });
+                } catch (e) {
+                  print("Error saving transaction: $e");
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Failed to save transaction.")),
+                  );
+                }
               },
             ),
           ],

@@ -12,23 +12,38 @@ class LocalDatabase {
   Database? _database;
   // ------------------- MONTHLY SALES (AUTO-GENERATE) -------------------
 
-  Future<List<Map<String, dynamic>>> getMonthlySales() async {
-    final db = await database;
+Future<List<Map<String, dynamic>>> getMonthlySales() async {
+  final db = await database;
 
-    // GROUP all transactions by year-month
-    final result = await db.rawQuery('''
+  final result = await db.rawQuery('''
     SELECT 
       strftime('%Y-%m', created_at) AS month,
       SUM(total) AS revenue,
       COUNT(id) AS total_transactions
     FROM transactions
     GROUP BY strftime('%Y-%m', created_at)
-    ORDER BY month DESC
+    ORDER BY month
   ''');
 
-    return result;
-  }
+  return result;
+}
 
+Future<List<Map<String, dynamic>>> getMonthlyItems(String month) async {
+  final db = await database;
+
+  return await db.rawQuery('''
+    SELECT 
+      ti.product_name,
+      ti.qty,
+      ti.price
+    FROM transaction_items ti
+    JOIN transactions t ON ti.transaction_id = t.id
+    WHERE strftime('%Y-%m', t.created_at) = ?
+  ''', [month]);
+}
+
+
+  
   // Insert stock update to queue
   Future<int> insertStockUpdate(int productId, int newStock) async {
     final db = await database;

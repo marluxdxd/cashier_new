@@ -50,6 +50,8 @@ dependencies:
   pdf: ^3.10.1
   printing: ^5.10.0   # for sharing / printing the PDF
   pdfx: ^2.9.2
+  fl_chart: ^1.1.1
+  path_provider: ^2.1.5
 
  
 

@@ -17,6 +17,45 @@ class TransactionService {
   final supabase2 = SupabaseConfig.supabase;
   final localDb = LocalDatabase();
 
+
+  // Fetch all transactions
+  /////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////
+
+  Future<List<Map<String, dynamic>>> fetchTransactions() async {
+    final data = await supabase
+        .from('transactions')
+        .select()
+        .order('created_at', ascending: false);
+
+    // Supabase returns List<dynamic>, so we cast
+    return List<Map<String, dynamic>>.from(data as List<dynamic>);
+  }
+
+  // Fetch items for a specific transaction
+  Future<List<Map<String, dynamic>>> fetchTransactionItems(int transactionId) async {
+    final data = await supabase
+        .from('transaction_items')
+        .select()
+        .eq('transaction_id', transactionId);
+
+    return List<Map<String, dynamic>>.from(data as List<dynamic>);
+  }
+
+/////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////
+
+
   //---------------- PHT Timestamp Helper ----------------
   /// Returns ISO8601 Philippine timestamp (UTC+8)
   String getPhilippineTimestamp() {
