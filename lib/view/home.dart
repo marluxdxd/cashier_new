@@ -12,6 +12,14 @@ import 'package:cashier/widget/sukli.dart';
 import 'package:cashier/widget/appdrawer.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'dart:async';
+import 'dart:math';
+// ------------------ Helper Functions ------------------
+int generateUniqueId() {
+  // Combine milliseconds + random 4-digit number
+  return DateTime.now().millisecondsSinceEpoch + Random().nextInt(90);
+}
+
+
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -340,7 +348,7 @@ class _HomeState extends State<Home> {
                   print("OFFLINE MODE → Saving to Local DB");
 
                   int localTrxId = await localDb.insertTransaction(
-                    id: DateTime.now().millisecondsSinceEpoch,
+                    id: generateUniqueId(),
                     total: totalBill,
                     cash: cash,
                     change: change,
@@ -375,7 +383,7 @@ class _HomeState extends State<Home> {
                         type: 'SALE',
                       );
                       await localDb.insertTransactionItem(
-                        id: DateTime.now().millisecondsSinceEpoch,
+                        id: generateUniqueId(),
                         transactionId: localTrxId,
                         productId: row.product!.id,
                         productName: row.product!.name,

@@ -3,6 +3,12 @@ import 'package:cashier/class/productclass.dart';
 import 'package:cashier/database/local_db.dart';
 import 'package:cashier/database/supabase.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:math';
+int generateUniqueId() {
+  // Combine milliseconds + random 4-digit number
+  return DateTime.now().millisecondsSinceEpoch + Random().nextInt(90);
+}
+
 
 class ProductService {
   final supabase = SupabaseConfig.supabase;
@@ -119,7 +125,7 @@ class ProductService {
   }) async {
     final db = await localDb.database;
 
-    final int localId = DateTime.now().millisecondsSinceEpoch;
+    final int localId = generateUniqueId();
     final local = await getLocalProducts();
     print("LOCAL PRODUCTS: $local");
     return await db.insert('products', {
