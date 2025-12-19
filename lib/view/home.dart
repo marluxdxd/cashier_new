@@ -325,169 +325,136 @@ class _HomeState extends State<Home> {
                 labelText: "Customer Cash",
                 border: OutlineInputBorder(),
               ),
-              onSubmitted: (_) async {
-                double cash = double.tryParse(customerCashController.text) ?? 0;
+            onSubmitted: (_) async {
+  double cash = double.tryParse(customerCashController.text) ?? 0;
 
-                if (!transactionService.isCashSufficient(totalBill, cash)) {
-                  print("Cash is not enough yet.");
-                  return;
-                }
+  if (!transactionService.isCashSufficient(totalBill, cash)) {
+    print("Cash is not enough yet.");
+    return;
+  }
 
-                final bool online =
-                    await InternetConnectionChecker().hasConnection;
-                final localDb = LocalDatabase();
+  final bool online = await InternetConnectionChecker().hasConnection;
+  final localDb = LocalDatabase();
+  double change = transactionService.calculateChange(totalBill, cash);
+  String timestamp = getPhilippineTimestampFormatted();
 
-                double change = transactionService.calculateChange(
-                  totalBill,
-                  cash,
-                );
-                String timestamp = getPhilippineTimestampFormatted();
+  try {
+    // ----------------- Save Transaction -----------------
+    int transactionId;
+    if (!online) {
+      // OFFLINE → Save locally as unsynced
+      transactionId = await localDb.insertTransaction(
+        id: generateUniqueId(),
+        total: totalBill,
+        cash: cash,
+        change: change,
+        createdAt: timestamp,
+        isSynced: 0,
+      );
+    } else {
+      // ONLINE → Save via service
+      transactionId = await transactionService.saveTransaction(
+        total: totalBill,
+        cash: cash,
+        change: change,
+      );
+      // Also save locally as synced
+      await localDb.insertTransaction(
+        id: transactionId,
+        total: totalBill,
+        cash: cash,
+        change: change,
+        createdAt: timestamp,
+        isSynced: 1,
+      );
+    }
 
-                if (!online) {
-                  // OFFLINE MODE
-                  print("OFFLINE MODE → Saving to Local DB");
+    // ----------------- Process Each Row -----------------
+    for (var row in rows) {
+      if (row.product == null) continue;
 
-                  int localTrxId = await localDb.insertTransaction(
-                    id: generateUniqueId(),
-                    total: totalBill,
-                    cash: cash,
-                    change: change,
-                    createdAt: timestamp,
-                    isSynced: 0, // 👈 offline pa
-                  );
-                  for (var row in rows) {
-                    if (row.product != null) {
-                      int qty = row.isPromo ? row.otherQty : row.qty;
-                      int? currentStock = await localDb.getProductStock(
-                        row.product!.id,
-                      );
-                      if (currentStock == null) return;
-                      if (currentStock < qty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              "Insufficient stock for ${row.product!.name}",
-                            ),
-                          ),
-                        );
-                        return;
-                      }
-                      int newStock = currentStock - qty;
-                      await localDb.updateProductStock(
-                        row.product!.id,
-                        newStock,
-                      );
-                      await localDb.insertStockUpdateQueue1(
-                        productId: row.product!.id,
-                        qty: qty,
-                        type: 'SALE',
-                      );
-                      await localDb.insertTransactionItem(
-                        id: generateUniqueId(),
-                        transactionId: localTrxId,
-                        productId: row.product!.id,
-                        productName: row.product!.name,
-                        qty: qty,
-                        price: row.product!.price,
-                        isPromo: row.isPromo,
-                        otherQty: row.otherQty,
-                      );
-                    }
-                  }
+      // --- Step 2: Get old stock ---
+      int? oldStock = await localDb.getProductStock(row.product!.id);
+      if (oldStock == null) continue;
 
-                  showDialog(
-                    context: context,
-                    builder: (_) => Sukli(change: change, timestamp: timestamp),
-                  );
+      // --- Step 3: Calculate new stock ---
+      int qtySold = row.isPromo ? row.otherQty : row.qty;
+      int newStock = oldStock - qtySold;
 
-                  customerCashController.clear();
-                  setState(() {
-                    rows = [POSRow()];
-                  });
-                  return;
-                }
+      // --- Step 4: Update local stock ---
+      await localDb.updateProductStock(row.product!.id, newStock);
 
-                // ONLINE MODE
-                try {
-                  int transactionId = await transactionService.saveTransaction(
-                    total: totalBill,
-                    cash: cash,
-                    change: change,
-                  );
+      // --- Step 5: Insert stock history ---
+      await localDb.insertStockHistory(
+        id: generateUniqueId(),
+        productId: row.product!.id,
+        oldStock: oldStock,
+        qtyChanged: qtySold,
+        newStock: newStock,
+        type: 'SALE',
+        createdAt: getPhilippineTimestampFormatted(),
+        synced: online ? 1 : 0,
+      );
 
-                  // 🔥 SAVE TRANSACTION LOCALLY AS SYNCED
-                  await localDb.insertTransaction(
-                    id: transactionId,
-                    total: totalBill,
-                    cash: cash,
-                    change: change,
-                    createdAt: timestamp,
-                    isSynced: 1,
-                  );
+      // --- Step 6: Queue for offline sync ---
+      await localDb.insertStockUpdateQueue1(
+        productId: row.product!.id,
+        qty: qtySold,
+        type: 'SALE',
+      );
 
-                  for (var row in rows) {
-                    if (row.product != null) {
-                      int qty = row.isPromo ? row.otherQty : row.qty;
+      // Save transaction item
+      if (online) {
+        await transactionService.saveTransactionItem(
+          transactionId: transactionId,
+          product: row.product!,
+          qty: qtySold,
+          isPromo: row.isPromo,
+          otherQty: row.otherQty,
+        );
+      } else {
+        await localDb.insertTransactionItem(
+          id: generateUniqueId(),
+          transactionId: transactionId,
+          productId: row.product!.id,
+          productName: row.product!.name,
+          qty: qtySold,
+          price: row.product!.price,
+          isPromo: row.isPromo,
+          otherQty: row.otherQty,
+        );
+      }
+    }
 
-                      // 🔥 GET CURRENT LOCAL STOCK
-                      int? currentStock = await localDb.getProductStock(
-                        row.product!.id,
-                      );
-                      if (currentStock == null) return;
+    // ----------------- Sync once after all rows -----------------
+    if (online) {
+      await productService.syncOfflineStockHistory();
+      await productService.syncOfflineProducts();
+    }
 
-                      if (currentStock < qty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              "Insufficient stock for ${row.product!.name}",
-                            ),
-                          ),
-                        );
-                        return;
-                      }
+    // ----------------- Show Change Dialog -----------------
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (_) => Sukli(change: change, timestamp: timestamp),
+      );
 
-                      int newStock = currentStock - qty;
+      customerCashController.clear();
+      setState(() {
+        rows = [POSRow()];
+      });
+    }
+  } catch (e) {
+    print("Error saving transaction: $e");
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to save transaction.")),
+      );
+    }
+  }
+},
 
-                      // ✅ UPDATE LOCAL STOCK
-                      await localDb.updateProductStock(
-                        row.product!.id,
-                        newStock,
-                      );
 
-                      // ✅ QUEUE STOCK UPDATE (SAME AS OFFLINE)
-                      await localDb.insertStockUpdateQueue1(
-                        productId: row.product!.id,
-                        qty: qty,
-                        type: 'SALE',
-                      );
-
-                      // 🔥 SAVE TRANSACTION ITEM (ONLINE)
-                      await transactionService.saveTransactionItem(
-                        transactionId: transactionId,
-                        product: row.product!,
-                        qty: qty,
-                        isPromo: row.isPromo,
-                        otherQty: row.otherQty,
-                      );
-                    }
-                  }
-
-                  showDialog(
-                    context: context,
-                    builder: (_) => Sukli(change: change, timestamp: timestamp),
-                  );
-
-                  customerCashController.clear();
-                  setState(() {
-                    rows = [POSRow()];
-                  });
-                } catch (e) {
-                  print("Error saving transaction: $e");
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Failed to save transaction.")),
-                  );
-                }
-              },
             ),
           ],
         ),

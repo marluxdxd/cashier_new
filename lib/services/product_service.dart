@@ -66,6 +66,97 @@ class ProductService {
   }
 }
 
+Future<void> reduceStock({
+    required int productId,
+    required int qtySold,
+    required String changeType,
+  }) async {
+    final db = await localDb.database;
+
+    // Get current stock
+    final productList = await db.query(
+      'products',
+      where: 'id = ?',
+      whereArgs: [productId],
+    );
+    if (productList.isEmpty) return;
+
+    final product = productList.first;
+    final int oldStock = product['stock'] as int;
+    final int newStock = oldStock - qtySold;
+
+    if (newStock < 0) {
+      print("Cannot reduce stock below 0 for product $productId");
+      return;
+    }
+
+    // Update local stock
+    await localDb.updateProductStock(productId, newStock);
+
+    // Insert stock history
+    final historyId = generateUniqueId();
+    final transDate = DateTime.now().toIso8601String();
+    await db.insert('product_stock_history', {
+      'id': historyId,
+      'product_id': productId,
+      'old_stock': oldStock,
+      'new_stock': newStock,
+      'qty_changed': qtySold,
+      'change_type': changeType,
+      'trans_date': transDate,
+      'is_synced': 0,
+    });
+
+    print("Stock reduced for product $productId: $oldStock → $newStock");
+  }
+
+
+Future<void> syncOfflineStockHistory() async {
+  final online = await isOnline1(); // your existing online check
+  if (!online) {
+    print("Offline: cannot sync stock history");
+    return;
+  }
+
+  final db = await localDb.database;
+
+  // 1️⃣ Get all unsynced stock history entries
+  final unsyncedHistory = await db.query(
+    'product_stock_history',
+    where: 'is_synced = ?',
+    whereArgs: [0],
+  );
+
+  for (var entry in unsyncedHistory) {
+    try {
+      // 2️⃣ Insert into Supabase
+ await supabase.from('product_stock_history').insert(
+  unsyncedHistory.map((e) => {
+    'product_id': e['product_id'],
+    'old_stock': e['old_stock'],
+    'new_stock': e['new_stock'],
+    'qty_changed': e['qty_changed'],
+    'type': e['type'],
+    'created_at': e['created_at'],
+  }).toList()
+);
+
+      // 3️⃣ Mark as synced locally
+      await db.update(
+        'product_stock_history',
+        {'is_synced': 1},
+        where: 'id = ?',
+        whereArgs: [entry['id']],
+      );
+
+      print("Synced stock history for product ${entry['product_id']}");
+    } catch (e) {
+      print("Failed to sync stock history id ${entry['id']}: $e");
+    }
+  }
+
+  print("All offline stock history synced!");
+}
 
   // Get all products from local DB
   Future<List<Map<String, dynamic>>> getLocalProducts() async {

@@ -6,10 +6,23 @@ import 'package:permission_handler/permission_handler.dart';
 
 class LocalDatabase {
   Database? _database;
+  DatabaseExecutor? _txn;
 
   static final LocalDatabase _instance = LocalDatabase._internal();
   factory LocalDatabase() => _instance;
   LocalDatabase._internal();
+
+Future<void> markTransactionAsSynced(int id) async {
+  final db = await database;
+  await db.update(
+    'transactions',
+    {'is_synced': 1},
+    where: 'id = ?',
+    whereArgs: [id],
+  );
+}
+
+
 
 // ------------------------- DATABASE GETTER ------------------------- //
   Future<Database> get database async {
@@ -18,97 +31,127 @@ class LocalDatabase {
     return _database!;
   }
 // ------------------------- DATABASE INITIALIZATION ----------------- //
-  Future<Database> _initDB() async {
+    Future<Database> _initDB() async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, 'app.db');
 
     final db = await openDatabase(
       path,
-      version: 2,
+      version: 4,
       onCreate: (db, version) async {
-        // Products table
-        await db.execute('''
-          CREATE TABLE products(
-            id INTEGER PRIMARY KEY, 
-            name TEXT NOT NULL,
-            price REAL NOT NULL,
-            stock INTEGER NOT NULL,
-            is_promo INTEGER DEFAULT 0,
-            other_qty INTEGER,
-            is_synced INTEGER DEFAULT 0,
-            client_uuid TEXT UNIQUE
-          )
-        ''');
-
-        // Transactions table
-        await db.execute('''
-          CREATE TABLE transactions(
-            id INTEGER PRIMARY KEY,
-            total REAL NOT NULL,
-            cash REAL NOT NULL,
-            change REAL NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            is_synced INTEGER DEFAULT 0
-          )
-        ''');
-
-        // Transaction items table
-        await db.execute('''
-          CREATE TABLE transaction_items(
-            id INTEGER PRIMARY KEY,
-            transaction_id INTEGER NOT NULL,
-            product_id INTEGER NOT NULL,
-            product_name TEXT NOT NULL,
-            qty INTEGER NOT NULL,
-            price REAL NOT NULL,
-            is_promo INTEGER DEFAULT 0,
-            other_qty INTEGER,
-            is_synced INTEGER DEFAULT 0,
-            supabase_id INTEGER, 
-            FOREIGN KEY(transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
-            FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
-            
-          )
-        ''');
-
-        await db.execute('''
-         CREATE TABLE IF NOT EXISTS stock_update_queue(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id INTEGER NOT NULL,
-               qty INTEGER NOT NULL,            -- pila ka gi-minus
-            type TEXT NOT NULL,              -- SALE, ADJUSTMENT, RETURN
-   
-            is_synced INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
-          )
-        ''');
-        await db.execute('PRAGMA foreign_keys = ON');
+        await _createTables(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
-        // Add new table for existing installations
-        if (oldVersion < 2) {
+        // Migration for product_stock_history column fixes
+        if (oldVersion < 4) {
+          // Rename old table
+          await db.execute(
+              'ALTER TABLE product_stock_history RENAME TO old_product_stock_history');
+
+          // Create new table with correct column name
           await db.execute('''
-          CREATE TABLE stock_update_queue(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id INTEGER NOT NULL,
-            qty INTEGER NOT NULL,            -- pila ka gi-minus
-            type TEXT NOT NULL,              -- SALE, ADJUSTMENT, RETURN
-   
-            is_synced INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
-          )
-         ''');
+            CREATE TABLE product_stock_history(
+              id INTEGER PRIMARY KEY,
+              product_id INTEGER,
+              old_stock INTEGER,
+              qty_changed INTEGER,
+              new_stock INTEGER,
+              type TEXT,
+              created_at TEXT,
+              is_synced INTEGER
+            )
+          ''');
+
+          // Copy old data
+          await db.execute('''
+            INSERT INTO product_stock_history (id, product_id, old_stock, qty_changed, new_stock, type, created_at, is_synced)
+SELECT id, product_id, old_stock, COALESCE(qty_changed, 0), new_stock, type, created_at, is_synced
+FROM old_product_stock_history
+          ''');
+
+          // Drop old table
+          await db.execute('DROP TABLE old_product_stock_history');
         }
       },
     );
 
-    // Enable foreign key support
     await db.execute('PRAGMA foreign_keys = ON');
-
     return db;
   }
+
+  Future<void> _createTables(Database db) async {
+    // Products table
+    await db.execute('''
+      CREATE TABLE products(
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        price REAL NOT NULL,
+        stock INTEGER NOT NULL,
+        is_promo INTEGER DEFAULT 0,
+        other_qty INTEGER,
+        is_synced INTEGER DEFAULT 0,
+        client_uuid TEXT UNIQUE
+      )
+    ''');
+
+    // Transactions table
+    await db.execute('''
+      CREATE TABLE transactions(
+        id INTEGER PRIMARY KEY,
+        total REAL NOT NULL,
+        cash REAL NOT NULL,
+        change REAL NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        is_synced INTEGER DEFAULT 0
+      )
+    ''');
+
+    // Product stock history
+    await db.execute('''
+      CREATE TABLE product_stock_history(
+        id INTEGER PRIMARY KEY,
+        product_id INTEGER,
+        old_stock INTEGER,
+        qty_changed INTEGER,
+        new_stock INTEGER,
+        type TEXT,
+        created_at TEXT,
+        is_synced INTEGER
+      )
+    ''');
+
+    // Transaction items
+    await db.execute('''
+      CREATE TABLE transaction_items(
+        id INTEGER PRIMARY KEY,
+        transaction_id INTEGER NOT NULL,
+        product_id INTEGER NOT NULL,
+        product_name TEXT NOT NULL,
+        qty INTEGER NOT NULL,
+        price REAL NOT NULL,
+        is_promo INTEGER DEFAULT 0,
+        other_qty INTEGER,
+        is_synced INTEGER DEFAULT 0,
+        supabase_id INTEGER,
+        FOREIGN KEY(transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
+        FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
+      )
+    ''');
+
+    // Stock update queue
+    await db.execute('''
+      CREATE TABLE stock_update_queue(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_id INTEGER NOT NULL,
+        qty INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        is_synced INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
+      )
+    ''');
+  }
+
 // ------------------- GET MONTHLY SALES ------------------- //
 
 Future<List<Map<String, dynamic>>> getMonthlySales() async {
@@ -519,6 +562,8 @@ Future<int> updateProductStock(int id, int stock) async {
   );
 }
 
+
+
 // ------------------- TRANSACTIONS CRUD ------------------- //
 // 🔹 Insert a new transaction (ignores conflict if ID exists)
 Future<int> insertTransaction({
@@ -617,6 +662,32 @@ Future<int> deleteTransactionItem(int id) async {
     'transaction_items',
     where: 'id = ?',
     whereArgs: [id],
+  );
+}
+Future<void> insertStockHistory({
+  required int id,
+  required int productId,
+  required int oldStock,
+  required int qtyChanged,
+  required int newStock,
+  required String type, // SALE, RESTOCK, ADJUSTMENT
+  required String createdAt,
+  required int synced, // 0 = offline, 1 = online
+}) async {
+  final db = await database;
+  await db.insert(
+    'product_stock_history',
+    {
+      'id': id,
+      'product_id': productId,
+      'old_stock': oldStock,
+      'qty_changed': qtyChanged,
+      'new_stock': newStock,
+      'type': type,
+      'created_at': createdAt,
+      'is_synced': synced,
+    },
+    conflictAlgorithm: ConflictAlgorithm.replace,
   );
 }
 
