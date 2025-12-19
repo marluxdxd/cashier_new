@@ -6,7 +6,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:math';
 int generateUniqueId() {
   // Combine milliseconds + random 4-digit number
-  return DateTime.now().millisecondsSinceEpoch + Random().nextInt(90);
+  return DateTime.now().millisecondsSinceEpoch + Random().nextInt(10000);
 }
 
 
@@ -125,7 +125,7 @@ class ProductService {
   }) async {
     final db = await localDb.database;
 
-    final int localId = generateUniqueId();
+    final int localId = DateTime.now().millisecondsSinceEpoch;
     final local = await getLocalProducts();
     print("LOCAL PRODUCTS: $local");
     return await db.insert('products', {
