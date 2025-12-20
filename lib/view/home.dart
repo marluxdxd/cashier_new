@@ -1,4 +1,5 @@
 import 'package:cashier/database/local_db.dart';
+import 'package:cashier/screens/debug_db_screen.dart';
 import 'package:cashier/services/product_service.dart';
 import 'package:cashier/services/transaction_service.dart';
 import 'package:cashier/utils.dart';
@@ -14,9 +15,8 @@ import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'dart:async';
 import 'dart:math';
 // ------------------ Helper Functions ------------------
-int generateUniqueId() {
-  // Combine milliseconds + random 4-digit number
-  return DateTime.now().millisecondsSinceEpoch + Random().nextInt(90);
+String generateUniqueId({String prefix = "S"}) {
+  return "$prefix${DateTime.now().millisecondsSinceEpoch}";
 }
 
 
@@ -65,32 +65,34 @@ class _HomeState extends State<Home> {
     });
   }
 
-  Future<void> syncProducts() async {
-    setState(() {
-      isSyncing = true;
-      syncSuccess = false;
-      matchedProducts.clear(); // ← important
-    });
-    print("isSyncing: $isSyncing, syncSuccess: $syncSuccess");
-    try {
-      await productService.syncOfflineProducts();
-      final latestProducts = await productService.getAllProducts();
+Future<void> syncProducts() async {
+  if (!mounted) return;
+  
+  setState(() {
+    isSyncing = true;
+    syncSuccess = false;
+    matchedProducts.clear();
+  });
 
-      setState(() {
-        matchedProducts = latestProducts;
-        syncSuccess = true;
-      });
-      print("Sync completed successfully!");
-      print("matchedProducts count: ${matchedProducts.length}");
-    } catch (e) {
-      print("Error during product sync: $e");
-    } finally {
-      setState(() => isSyncing = false);
-    }
-    print(
-      "Sync process ended. isSyncing: $isSyncing, syncSuccess: $syncSuccess",
-    );
+  try {
+    await productService.syncOfflineProducts();
+    final latestProducts = await productService.getAllProducts();
+
+    if (!mounted) return; // ✅ check again
+
+    setState(() {
+      matchedProducts = latestProducts;
+      syncSuccess = true;
+    });
+    print("Sync completed successfully!");
+  } catch (e) {
+    print("Error during product sync: $e");
+  } finally {
+    if (!mounted) return; // ✅ check again
+    setState(() => isSyncing = false);
   }
+}
+
 
   @override
   void dispose() {
@@ -279,7 +281,16 @@ class _HomeState extends State<Home> {
                 itemBuilder: (_, index) => buildRow(rows[index], index),
               ),
             ),
-
+IconButton(
+  icon: const Icon(Icons.storage),
+  tooltip: "Open DB Debug",
+  onPressed: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const DebugDbScreen()),
+    );
+  },
+),
             SizedBox(height: 20),
 
             // TOTAL BILL
@@ -314,7 +325,7 @@ class _HomeState extends State<Home> {
                 ],
               ),
             ),
-
+ 
             SizedBox(height: 20),
 
             // CUSTOMER CASH
@@ -325,7 +336,9 @@ class _HomeState extends State<Home> {
                 labelText: "Customer Cash",
                 border: OutlineInputBorder(),
               ),
+              
             onSubmitted: (_) async {
+              
   double cash = double.tryParse(customerCashController.text) ?? 0;
 
   if (!transactionService.isCashSufficient(totalBill, cash)) {
@@ -341,10 +354,11 @@ class _HomeState extends State<Home> {
   try {
     // ----------------- Save Transaction -----------------
     int transactionId;
+
     if (!online) {
       // OFFLINE → Save locally as unsynced
       transactionId = await localDb.insertTransaction(
-        id: generateUniqueId(),
+        id: generateUniqueId(prefix: "T").hashCode.abs(),
         total: totalBill,
         cash: cash,
         change: change,
@@ -360,7 +374,7 @@ class _HomeState extends State<Home> {
       );
       // Also save locally as synced
       await localDb.insertTransaction(
-        id: transactionId,
+        id: generateUniqueId(prefix: "T").hashCode.abs(),
         total: totalBill,
         cash: cash,
         change: change,
@@ -386,7 +400,7 @@ class _HomeState extends State<Home> {
 
       // --- Step 5: Insert stock history ---
       await localDb.insertStockHistory(
-        id: generateUniqueId(),
+        id: generateUniqueId(prefix: "T").hashCode.abs(),
         productId: row.product!.id,
         oldStock: oldStock,
         qtyChanged: qtySold,
@@ -414,7 +428,7 @@ class _HomeState extends State<Home> {
         );
       } else {
         await localDb.insertTransactionItem(
-          id: generateUniqueId(),
+          id: generateUniqueId(prefix: "T").hashCode.abs(),
           transactionId: transactionId,
           productId: row.product!.id,
           productName: row.product!.name,
@@ -456,6 +470,7 @@ class _HomeState extends State<Home> {
 
 
             ),
+          
           ],
         ),
       ),

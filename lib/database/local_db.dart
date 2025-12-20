@@ -20,6 +20,19 @@ Future<void> markTransactionAsSynced(int id) async {
     whereArgs: [id],
   );
 }
+  Future<List<String>> getAllTableNames() async {
+    final db = await database;
+    final tables = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';",
+    );
+    return tables.map((e) => e['name'].toString()).toList();
+  }
+
+  /// GET ALL ROWS FROM A TABLE
+  Future<List<Map<String, dynamic>>> getAllRows(String tableName) async {
+    final db = await database;
+    return await db.query(tableName);
+  }
 
 // Get latest stock
 Future<Map<String, dynamic>?> getLatestStock(int productId) async {
@@ -111,6 +124,18 @@ FROM old_product_stock_history
 
   Future<void> _createTables(Database db) async {
     // Products table
+
+    await db.execute('''
+  CREATE TABLE IF NOT EXISTS products_offline (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    price REAL NOT NULL,
+    stock INTEGER NOT NULL,
+    is_promo INTEGER DEFAULT 0,
+    other_qty INTEGER DEFAULT 0,
+    is_synced INTEGER DEFAULT 0
+  )
+''');
     await db.execute('''
       CREATE TABLE products(
         id INTEGER PRIMARY KEY,
@@ -563,6 +588,7 @@ Future<int> insertProduct({
   required int stock,
   bool isPromo = false,
   int otherQty = 0,
+  String? clientUuid, // <- add this
 }) async {
   final db = await database;
   return await db.insert(
@@ -574,6 +600,7 @@ Future<int> insertProduct({
       'stock': stock,
       'is_promo': isPromo ? 1 : 0,
       'other_qty': otherQty,
+      'client_uuid': clientUuid, // <- save it
     },
     conflictAlgorithm: ConflictAlgorithm.replace, // update if exists
   );
@@ -729,6 +756,13 @@ Future<void> insertStockHistory({
     },
     conflictAlgorithm: ConflictAlgorithm.replace,
   );
+}
+
+
+Future<bool> productExists(int id) async {
+  final db = await database;
+  final res = await db.query('products', where: 'id = ?', whereArgs: [id]);
+  return res.isNotEmpty;
 }
 
 }

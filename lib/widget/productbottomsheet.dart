@@ -10,6 +10,7 @@ class Productbottomsheet extends StatefulWidget {
 }
 
 class _ProductbottomsheetState extends State<Productbottomsheet> {
+  ValueNotifier<bool> isSelected = ValueNotifier(false);
   TextEditingController searchController = TextEditingController();
  final productService = ProductService();  // ← importante kaayo
   List<Productclass> products = []; // Full list from Supabase
@@ -19,13 +20,26 @@ class _ProductbottomsheetState extends State<Productbottomsheet> {
   @override
   void initState() {
     super.initState();
+    isSelected.dispose();
     // fetchProductsFromSupabase();
-    loadProducts();  // ← new method
+    loadProducts();  // ← new metho
+      productService.listenToConnectivity(() async {
+    loadProducts();
+  });
+    
   }
+  @override
+void dispose() {
+  productService.disposeConnectivity();
+  searchController.dispose();
+  super.dispose();
+}
+  
 
   void loadProducts() async {
   try {
     final fetchedProducts = await productService.getAllProducts();
+    if (!mounted) return;
 
     setState(() {
       products = fetchedProducts;
