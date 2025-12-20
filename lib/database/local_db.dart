@@ -184,17 +184,16 @@ await db.execute('''
 
     // Product stock history
     await db.execute('''
-      CREATE TABLE product_stock_history(
-        id INTEGER PRIMARY KEY,
-        product_id INTEGER,
-        old_stock INTEGER,
-        qty_changed INTEGER,
-        new_stock INTEGER,
-        type TEXT,
-        created_at TEXT,
-        is_synced INTEGER,
-        synced INTEGER DEFAULT 0
-      )
+      CREATE TABLE product_stock_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER,
+  old_stock INTEGER,
+  qty_changed INTEGER,
+  new_stock INTEGER,
+  type TEXT,
+  created_at TEXT,
+  is_synced INTEGER DEFAULT 0
+)
     ''');
 
     // Transaction items

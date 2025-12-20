@@ -43,6 +43,8 @@ class _HomeState extends State<Home> {
   @override
   void initState() {
     super.initState();
+      // 🔹 Automatic sync on startup
+  _syncOnStartup();
 
     // Sync offline products on init → this will also load all products
     syncProducts();
@@ -52,6 +54,7 @@ class _HomeState extends State<Home> {
       status,
     ) async {
       if (status == InternetConnectionStatus.connected) {
+        await productService.syncOfflineProducts();
         await transactionService.syncOfflineTransactions(); // 👈 IMPORTANT
         await syncProducts();
       }
@@ -62,7 +65,12 @@ class _HomeState extends State<Home> {
       if (status != ConnectivityResult.none) syncProducts();
     });
   }
-
+Future<void> _syncOnStartup() async {
+  final online = await ProductService().isOnline1();
+  if (online) {
+    await ProductService().syncOnlineProducts();
+  }
+}
   Future<void> syncProducts() async {
     if (!mounted) return;
 
@@ -421,6 +429,7 @@ class _HomeState extends State<Home> {
 
                     // Save transaction item
                     if (online) {
+                      await productService.syncOfflineProducts();
                       await transactionService.saveTransactionItem(
                         transactionId: transactionId,
                         product: row.product!,

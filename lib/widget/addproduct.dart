@@ -38,6 +38,10 @@ class _AddProductPageState extends State<AddProductPage> {
     isPromo: isPromo,
     otherQty: otherQty,
   );
+  // 🔁 Auto sync if online
+if (await productService.isOnline2()) {
+  await productService.syncOnlineProducts();
+}
 
   // 2️⃣ Sync this product if online
   if (await productService.isOnline1()) {

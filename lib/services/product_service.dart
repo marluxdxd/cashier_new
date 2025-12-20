@@ -5,6 +5,8 @@ import 'package:cashier/database/local_db.dart';
 import 'package:cashier/database/supabase.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:internet_connection_checker/internet_connection_checker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 String generateUniqueId({String prefix = "S"}) {
   return "$prefix${DateTime.now().millisecondsSinceEpoch}";
@@ -67,7 +69,7 @@ class ProductService {
 
           isPromo: p['is_promo'] as bool? ?? false,
           otherQty: p['other_qty'] as int? ?? 0,
-          clientUuid: p['client_uuid']?.toString(), 
+          clientUuid: p['client_uuid']?.toString(),
         );
       }
 
@@ -269,16 +271,120 @@ class ProductService {
     });
   }
 
+  // -----------------------------
+  // CHECK INTERNET
+  Future<bool> isOnline2() async {
+    return await InternetConnectionChecker().hasConnection;
+  }
+
+  // -----------------------------
+  // CORE SYNC FUNCTION
+ Future<void> syncOnlineProducts() async {
+  final online = await isOnline2();
+  if (!online) {
+    print("❌ Offline: cannot sync");
+    return;
+  }
+
+  final db = await localDb.database;
+
+  // ✅ Get latest unsynced product
+  final unsynced = await db.query(
+    'products',
+    where: 'is_synced = ?',
+    whereArgs: [0],
+    orderBy: 'id DESC', // latest first
+    limit: 1,           // only ONE product
+  );
+
+  if (unsynced.isEmpty) {
+    print("✅ No products to sync");
+    return;
+  }
+
+  for (final p in unsynced) {
+    final clientUuid = p['client_uuid']?.toString();
+    if (clientUuid == null || clientUuid.isEmpty) {
+      print("⚠️ Skipping product without client_uuid: ${p['name']}");
+      continue;
+    }
+
+    // 🔹 Safe type casting
+    final price = p['price'] is int
+        ? (p['price'] as int).toDouble()
+        : p['price'] is double
+            ? p['price'] as double
+            : 0.0;
+
+    final stock = p['stock'] is int ? p['stock'] as int : 0;
+    final isPromo = (p['is_promo'] ?? 0) == 1;
+    final otherQty = p['other_qty'] is int ? p['other_qty'] as int : 0;
+
+    try {
+      // 1️⃣ Check if product with same client_uuid exists in Supabase
+      final existing = await supabase
+          .from('products')
+          .select('id')
+          .eq('client_uuid', clientUuid)
+          .maybeSingle();
+
+      if (existing != null) {
+        // 🔁 UPDATE existing product
+        await supabase.from('products').update({
+          'name': p['name'],
+          'price': price,
+          'stock': stock,
+          'is_promo': isPromo,
+          'other_qty': otherQty,
+        }).eq('id', existing['id']);
+        print("🔁 Updated product '${p['name']}' on Supabase");
+      } else {
+        // ➕ INSERT new product
+        await supabase.from('products').insert({
+          'name': p['name'],
+          'price': price,
+          'stock': stock,
+          'is_promo': isPromo,
+          'other_qty': otherQty,
+          'client_uuid': clientUuid,
+        });
+        print("➕ Inserted product '${p['name']}' to Supabase");
+      }
+
+      // 2️⃣ Mark product as synced locally
+      await db.update(
+        'products',
+        {'is_synced': 1},
+        where: 'id = ?',
+        whereArgs: [p['id']],
+      );
+
+      print("✅ Synced product '${p['name']}' successfully!");
+    } catch (e) {
+      print("❌ Failed to sync ${p['name']}: $e");
+    }
+  }
+
+  print("✅ All offline products synced to Supabase");
+}
+
+  // -----------------------------
+  // GET ALL PRODUCTS (LOCAL VIEW)
+  Future<List<Productclass>> getAllProducts2() async {
+    final db = await localDb.database;
+    final res = await db.query('products', orderBy: 'name ASC');
+    return res.map((e) => Productclass.fromMap(e)).toList();
+  }
+
   // ------------------- SYNC UNSYNCED PRODUCTS -------------------
   Future<void> syncOfflineProducts() async {
     final online = await isOnline1();
     if (!online) {
       print("Offline: cannot sync to Supabase");
       return;
-      
     }
-final unsynced= await localDb.database.then(
-  (db) => db.rawQuery('''
+    final unsynced = await localDb.database.then(
+      (db) => db.rawQuery('''
     SELECT p.*
     FROM products p
     JOIN product_stock_history h
@@ -286,16 +392,16 @@ final unsynced= await localDb.database.then(
     WHERE h.synced = 0
     ORDER BY h.created_at DESC
   '''),
-);
- //   final unsynced = await localDb.database.then(
- //   (db) => db.query(
- //     'products',
- //     where: 'is_synced = ?',
- //     whereArgs: [0],
- //     orderBy: 'id DESC', // latest product first
- //     limit: 1,           // only ONE product
- //   ),
- // );
+    );
+    //   final unsynced = await localDb.database.then(
+    //   (db) => db.query(
+    //     'products',
+    //     where: 'is_synced = ?',
+    //     whereArgs: [0],
+    //     orderBy: 'id DESC', // latest product first
+    //     limit: 1,           // only ONE product
+    //   ),
+    // );
 
     for (var p in unsynced) {
       final clientUuid = p['client_uuid']?.toString();
