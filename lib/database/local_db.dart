@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:cashier/services/transaction_service.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -22,6 +21,37 @@ Future<void> markTransactionAsSynced(int id) async {
   );
 }
 
+// Get latest stock
+Future<Map<String, dynamic>?> getLatestStock(int productId) async {
+  final db = await database;
+  final res = await db.query(
+    'latest_stock_detail',
+    where: 'product_id = ?',
+    whereArgs: [productId],
+  );
+  return res.isNotEmpty ? res.first : null;
+}
+
+// Insert latest stock
+Future<void> insertLatestStock(int productId, int oldStock, int latestStock) async {
+  final db = await database;
+  await db.insert('latest_stock_detail', {
+    'product_id': productId,
+    'old_stock': oldStock,
+    'latest_stock': latestStock,
+  });
+}
+
+// Update latest stock
+Future<void> updateLatestStock(int productId, int oldStock, int latestStock) async {
+  final db = await database;
+  await db.update(
+    'latest_stock_detail',
+    {'old_stock': oldStock, 'latest_stock': latestStock},
+    where: 'product_id = ?',
+    whereArgs: [productId],
+  );
+}
 
 
 // ------------------------- DATABASE GETTER ------------------------- //
@@ -93,6 +123,16 @@ FROM old_product_stock_history
         client_uuid TEXT UNIQUE
       )
     ''');
+
+    // Table to keep track of latest stock for each product
+await db.execute('''
+  CREATE TABLE IF NOT EXISTS latest_stock_detail (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id INTEGER UNIQUE,
+    old_stock INTEGER,
+    latest_stock INTEGER
+  )
+''');
 
     // Transactions table
     await db.execute('''
