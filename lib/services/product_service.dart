@@ -6,7 +6,6 @@ import 'package:cashier/database/supabase.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 String generateUniqueId({String prefix = "S"}) {
   return "$prefix${DateTime.now().millisecondsSinceEpoch}";
@@ -319,6 +318,7 @@ class ProductService {
     final stock = p['stock'] is int ? p['stock'] as int : 0;
     final isPromo = (p['is_promo'] ?? 0) == 1;
     final otherQty = p['other_qty'] is int ? p['other_qty'] as int : 0;
+    
 
     try {
       // 1️⃣ Check if product with same client_uuid exists in Supabase
@@ -383,16 +383,17 @@ class ProductService {
       print("Offline: cannot sync to Supabase");
       return;
     }
-    final unsynced = await localDb.database.then(
-      (db) => db.rawQuery('''
+final unsynced = await localDb.database.then(
+  (db) => db.rawQuery('''
     SELECT p.*
     FROM products p
     JOIN product_stock_history h
       ON p.id = h.product_id
-    WHERE h.synced = 0
+    WHERE h.is_synced = 0
     ORDER BY h.created_at DESC
   '''),
-    );
+);
+
     //   final unsynced = await localDb.database.then(
     //   (db) => db.query(
     //     'products',
