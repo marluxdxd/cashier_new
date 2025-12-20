@@ -16,7 +16,7 @@ class ConnectivityService {
     Connectivity().onConnectivityChanged.listen((ConnectivityResult result) async {
       if (result != ConnectivityResult.none) {
         print("Device is online! Syncing offline products...");
-        await productService.syncOfflineProducts();
+        
         await transactionService.syncOfflineTransactions(); // auto-sync transactions
         await transactionItemService.syncOfflineTransactionItem(); // auto-sync transactionsitem
         print("Check synced items in local DB:");

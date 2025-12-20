@@ -167,7 +167,8 @@ await db.execute('''
         cash REAL NOT NULL,
         change REAL NOT NULL,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        is_synced INTEGER DEFAULT 0
+        is_synced INTEGER DEFAULT 0,
+        client_uuid TEXT UNIQUE
       )
     ''');
 

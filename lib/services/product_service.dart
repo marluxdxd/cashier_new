@@ -67,7 +67,7 @@ class ProductService {
 
           isPromo: p['is_promo'] as bool? ?? false,
           otherQty: p['other_qty'] as int? ?? 0,
-          clientUuid: p['client_uuid']?.toString(),
+          clientUuid: p['client_uuid']?.toString(), 
         );
       }
 
@@ -277,9 +277,15 @@ class ProductService {
       return;
     }
 
-    final unsynced = await localDb.database.then(
-      (db) => db.query('products', where: 'is_synced = ?', whereArgs: [0]),
-    );
+  final unsynced = await localDb.database.then(
+  (db) => db.query(
+    'products',
+    where: 'is_synced = ?',
+    whereArgs: [0],
+    orderBy: 'id DESC', // latest product first
+    limit: 1,           // only ONE product
+  ),
+);
 
     for (var p in unsynced) {
       final clientUuid = p['client_uuid']?.toString();

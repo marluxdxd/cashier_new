@@ -14,12 +14,11 @@ import 'package:cashier/widget/appdrawer.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'dart:async';
 import 'dart:math';
+
 // ------------------ Helper Functions ------------------
 String generateUniqueId({String prefix = "S"}) {
   return "$prefix${DateTime.now().millisecondsSinceEpoch}";
 }
-
-
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -65,34 +64,33 @@ class _HomeState extends State<Home> {
     });
   }
 
-Future<void> syncProducts() async {
-  if (!mounted) return;
-  
-  setState(() {
-    isSyncing = true;
-    syncSuccess = false;
-    matchedProducts.clear();
-  });
-
-  try {
-    await productService.syncOfflineProducts();
-    final latestProducts = await productService.getAllProducts();
-
-    if (!mounted) return; // ✅ check again
+  Future<void> syncProducts() async {
+    if (!mounted) return;
 
     setState(() {
-      matchedProducts = latestProducts;
-      syncSuccess = true;
+      isSyncing = true;
+      syncSuccess = false;
+      matchedProducts.clear();
     });
-    print("Sync completed successfully!");
-  } catch (e) {
-    print("Error during product sync: $e");
-  } finally {
-    if (!mounted) return; // ✅ check again
-    setState(() => isSyncing = false);
-  }
-}
 
+    try {
+      await productService.syncOfflineProducts();
+      final latestProducts = await productService.getAllProducts();
+
+      if (!mounted) return; // ✅ check again
+
+      setState(() {
+        matchedProducts = latestProducts;
+        syncSuccess = true;
+      });
+      print("Sync completed successfully!");
+    } catch (e) {
+      print("Error during product sync: $e");
+    } finally {
+      if (!mounted) return; // ✅ check again
+      setState(() => isSyncing = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -281,16 +279,16 @@ Future<void> syncProducts() async {
                 itemBuilder: (_, index) => buildRow(rows[index], index),
               ),
             ),
-IconButton(
-  icon: const Icon(Icons.storage),
-  tooltip: "Open DB Debug",
-  onPressed: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const DebugDbScreen()),
-    );
-  },
-),
+            IconButton(
+              icon: const Icon(Icons.storage),
+              tooltip: "Open DB Debug",
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DebugDbScreen()),
+                );
+              },
+            ),
             SizedBox(height: 20),
 
             // TOTAL BILL
@@ -325,7 +323,7 @@ IconButton(
                 ],
               ),
             ),
- 
+
             SizedBox(height: 20),
 
             // CUSTOMER CASH
@@ -336,141 +334,144 @@ IconButton(
                 labelText: "Customer Cash",
                 border: OutlineInputBorder(),
               ),
-              
-            onSubmitted: (_) async {
-              
-  double cash = double.tryParse(customerCashController.text) ?? 0;
 
-  if (!transactionService.isCashSufficient(totalBill, cash)) {
-    print("Cash is not enough yet.");
-    return;
-  }
+              onSubmitted: (_) async {
+                double cash = double.tryParse(customerCashController.text) ?? 0;
 
-  final bool online = await InternetConnectionChecker().hasConnection;
-  final localDb = LocalDatabase();
-  double change = transactionService.calculateChange(totalBill, cash);
-  String timestamp = getPhilippineTimestampFormatted();
+                if (!transactionService.isCashSufficient(totalBill, cash)) {
+                  print("Cash is not enough yet.");
+                  return;
+                }
 
-  try {
-    // ----------------- Save Transaction -----------------
-    int transactionId;
+                final bool online =
+                    await InternetConnectionChecker().hasConnection;
+                final localDb = LocalDatabase();
+                double change = transactionService.calculateChange(
+                  totalBill,
+                  cash,
+                );
+                String timestamp = getPhilippineTimestampFormatted();
 
-    if (!online) {
-      // OFFLINE → Save locally as unsynced
-      transactionId = await localDb.insertTransaction(
-        id: generateUniqueId(prefix: "T").hashCode.abs(),
-        total: totalBill,
-        cash: cash,
-        change: change,
-        createdAt: timestamp,
-        isSynced: 0,
-      );
-    } else {
-      // ONLINE → Save via service
-      transactionId = await transactionService.saveTransaction(
-        total: totalBill,
-        cash: cash,
-        change: change,
-      );
-      // Also save locally as synced
-      await localDb.insertTransaction(
-        id: generateUniqueId(prefix: "T").hashCode.abs(),
-        total: totalBill,
-        cash: cash,
-        change: change,
-        createdAt: timestamp,
-        isSynced: 1,
-      );
-    }
+                try {
+                  // ----------------- Save Transaction -----------------
+                  int transactionId;
 
-    // ----------------- Process Each Row -----------------
-    for (var row in rows) {
-      if (row.product == null) continue;
+                  if (!online) {
+                    // OFFLINE → Save locally as unsynced
+                    transactionId = await localDb.insertTransaction(
+                      id: generateUniqueId(prefix: "T").hashCode.abs(),
+                      total: totalBill,
+                      cash: cash,
+                      change: change,
+                      createdAt: timestamp,
+                      isSynced: 0,
+                    );
+                  } else {
+                    // ONLINE → Save via service
+                    transactionId = await transactionService.saveTransaction(
+                      total: totalBill,
+                      cash: cash,
+                      change: change,
+                    );
+                    // Also save locally as synced
+                    await localDb.insertTransaction(
+                      id: generateUniqueId(prefix: "T").hashCode.abs(),
+                      total: totalBill,
+                      cash: cash,
+                      change: change,
+                      createdAt: timestamp,
+                      isSynced: 1,
+                    );
+                  }
 
-      // --- Step 2: Get old stock ---
-      int? oldStock = await localDb.getProductStock(row.product!.id);
-      if (oldStock == null) continue;
+                  // ----------------- Process Each Row -----------------
+                  for (var row in rows) {
+                    if (row.product == null) continue;
 
-      // --- Step 3: Calculate new stock ---
-      int qtySold = row.isPromo ? row.otherQty : row.qty;
-      int newStock = oldStock - qtySold;
+                    // --- Step 2: Get old stock ---
+                    int? oldStock = await localDb.getProductStock(
+                      row.product!.id,
+                    );
+                    if (oldStock == null) continue;
 
-      // --- Step 4: Update local stock ---
-      await localDb.updateProductStock(row.product!.id, newStock);
+                    // --- Step 3: Calculate new stock ---
+                    int qtySold = row.isPromo ? row.otherQty : row.qty;
+                    int newStock = oldStock - qtySold;
 
-      // --- Step 5: Insert stock history ---
-      await localDb.insertStockHistory(
-        id: generateUniqueId(prefix: "T").hashCode.abs(),
-        productId: row.product!.id,
-        oldStock: oldStock,
-        qtyChanged: qtySold,
-        newStock: newStock,
-        type: 'SALE',
-        createdAt: getPhilippineTimestampFormatted(),
-        synced: online ? 1 : 0,
-      );
+                    // --- Step 4: Update local stock ---
+                    await localDb.updateProductStock(row.product!.id, newStock);
 
-      // --- Step 6: Queue for offline sync ---
-      await localDb.insertStockUpdateQueue1(
-        productId: row.product!.id,
-        qty: qtySold,
-        type: 'SALE',
-      );
+                    // --- Step 5: Insert stock history ---
+                    await localDb.insertStockHistory(
+                      id: generateUniqueId(prefix: "T").hashCode.abs(),
+                      productId: row.product!.id,
+                      oldStock: oldStock,
+                      qtyChanged: qtySold,
+                      newStock: newStock,
+                      type: 'SALE',
+                      createdAt: getPhilippineTimestampFormatted(),
+                      synced: online ? 1 : 0,
+                    );
 
-      // Save transaction item
-      if (online) {
-        await transactionService.saveTransactionItem(
-          transactionId: transactionId,
-          product: row.product!,
-          qty: qtySold,
-          isPromo: row.isPromo,
-          otherQty: row.otherQty,
-        );
-      } else {
-        await localDb.insertTransactionItem(
-          id: generateUniqueId(prefix: "T").hashCode.abs(),
-          transactionId: transactionId,
-          productId: row.product!.id,
-          productName: row.product!.name,
-          qty: qtySold,
-          price: row.product!.price,
-          isPromo: row.isPromo,
-          otherQty: row.otherQty,
-        );
-      }
-    }
+                    // --- Step 6: Queue for offline sync ---
+                    await localDb.insertStockUpdateQueue1(
+                      productId: row.product!.id,
+                      qty: qtySold,
+                      type: 'SALE',
+                    );
 
-    // ----------------- Sync once after all rows -----------------
-    if (online) {
-      await productService.syncOfflineStockHistory();
-      await productService.syncOfflineProducts();
-    }
+                    // Save transaction item
+                    if (online) {
+                      await transactionService.saveTransactionItem(
+                        transactionId: transactionId,
+                        product: row.product!,
+                        qty: qtySold,
+                        isPromo: row.isPromo,
+                        otherQty: row.otherQty,
+                      );
+                    } else {
+                      await localDb.insertTransactionItem(
+                        id: generateUniqueId(prefix: "T").hashCode.abs(),
+                        transactionId: transactionId,
+                        productId: row.product!.id,
+                        productName: row.product!.name,
+                        qty: qtySold,
+                        price: row.product!.price,
+                        isPromo: row.isPromo,
+                        otherQty: row.otherQty,
+                      );
+                    }
+                  }
 
-    // ----------------- Show Change Dialog -----------------
-    if (mounted) {
-      showDialog(
-        context: context,
-        builder: (_) => Sukli(change: change, timestamp: timestamp),
-      );
+                  // ----------------- Sync once after all rows -----------------
+                  if (online) {
+                    await productService.syncOfflineStockHistory();
+                    await productService.syncOfflineProducts();
+                  }
 
-      customerCashController.clear();
-      setState(() {
-        rows = [POSRow()];
-      });
-    }
-  } catch (e) {
-    print("Error saving transaction: $e");
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to save transaction.")),
-      );
-    }
-  }
-},
+                  // ----------------- Show Change Dialog -----------------
+                  if (mounted) {
+                    showDialog(
+                      context: context,
+                      builder: (_) =>
+                          Sukli(change: change, timestamp: timestamp),
+                    );
 
-
+                    customerCashController.clear();
+                    setState(() {
+                      rows = [POSRow()];
+                    });
+                  }
+                } catch (e) {
+                  print("Error saving transaction: $e");
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Failed to save transaction.")),
+                    );
+                  }
+                }
+              },
             ),
-          
           ],
         ),
       ),
