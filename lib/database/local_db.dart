@@ -126,6 +126,13 @@ FROM old_product_stock_history
     // Products table
 
     await db.execute('''
+  CREATE TABLE IF NOT EXISTS meta (
+    key TEXT PRIMARY KEY,
+    value TEXT
+  )
+''');
+
+    await db.execute('''
   CREATE TABLE IF NOT EXISTS products_offline (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
@@ -145,9 +152,12 @@ FROM old_product_stock_history
         is_promo INTEGER DEFAULT 0,
         other_qty INTEGER,
         is_synced INTEGER DEFAULT 0,
-        client_uuid TEXT UNIQUE
+        client_uuid TEXT UNIQUE,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       )
     ''');
+
+    
 
     // Table to keep track of latest stock for each product
 await db.execute('''
@@ -182,7 +192,8 @@ await db.execute('''
         new_stock INTEGER,
         type TEXT,
         created_at TEXT,
-        is_synced INTEGER
+        is_synced INTEGER,
+        synced INTEGER DEFAULT 0
       )
     ''');
 
@@ -765,5 +776,6 @@ Future<bool> productExists(int id) async {
   final res = await db.query('products', where: 'id = ?', whereArgs: [id]);
   return res.isNotEmpty;
 }
+
 
 }

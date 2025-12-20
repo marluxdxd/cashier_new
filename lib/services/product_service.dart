@@ -275,17 +275,27 @@ class ProductService {
     if (!online) {
       print("Offline: cannot sync to Supabase");
       return;
+      
     }
-
-  final unsynced = await localDb.database.then(
-  (db) => db.query(
-    'products',
-    where: 'is_synced = ?',
-    whereArgs: [0],
-    orderBy: 'id DESC', // latest product first
-    limit: 1,           // only ONE product
-  ),
+final unsynced= await localDb.database.then(
+  (db) => db.rawQuery('''
+    SELECT p.*
+    FROM products p
+    JOIN product_stock_history h
+      ON p.id = h.product_id
+    WHERE h.synced = 0
+    ORDER BY h.created_at DESC
+  '''),
 );
+ //   final unsynced = await localDb.database.then(
+ //   (db) => db.query(
+ //     'products',
+ //     where: 'is_synced = ?',
+ //     whereArgs: [0],
+ //     orderBy: 'id DESC', // latest product first
+ //     limit: 1,           // only ONE product
+ //   ),
+ // );
 
     for (var p in unsynced) {
       final clientUuid = p['client_uuid']?.toString();

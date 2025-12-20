@@ -13,7 +13,6 @@ import 'package:cashier/widget/sukli.dart';
 import 'package:cashier/widget/appdrawer.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'dart:async';
-import 'dart:math';
 
 // ------------------ Helper Functions ------------------
 String generateUniqueId({String prefix = "S"}) {
@@ -455,6 +454,7 @@ class _HomeState extends State<Home> {
                       context: context,
                       builder: (_) =>
                           Sukli(change: change, timestamp: timestamp),
+       
                     );
 
                     customerCashController.clear();
