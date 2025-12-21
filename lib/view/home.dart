@@ -398,7 +398,9 @@ class _HomeState extends State<Home> {
     // ================= PROCESS ITEMS =================
     for (var row in rows) {
       if (row.product == null) continue;
-
+  final product = row.product!;
+  final localDb = LocalDatabase();
+  
       int? oldStock = await localDb.getProductStock(row.product!.id);
       if (oldStock == null) continue;
 
@@ -406,7 +408,19 @@ class _HomeState extends State<Home> {
       int newStock = oldStock - qtySold;
 
       await localDb.updateProductStock(row.product!.id, newStock);
-
+  // --- Step 3: Update local stock & mark as unsynced ---
+  await localDb.updateProduct(
+    id: product.id,
+    stock: newStock,
+    price: product.price,
+    isPromo: product.isPromo,
+    otherQty: product.otherQty,
+  );
+    // --- Step 4: Sync this single product online if online ---
+  final online = await InternetConnectionChecker().hasConnection;
+  if (online) {
+    await productService.syncSingleProductOnline(product.id);
+  }
       await localDb.insertStockHistory(
         id: generateUniqueId(prefix: "H").hashCode.abs(),
         productId: row.product!.id,

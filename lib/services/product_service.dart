@@ -315,7 +315,7 @@ Future<void> updateStockOnline({
     where: 'is_synced = ?',
     whereArgs: [0],
     orderBy: 'id DESC', // latest first
-    limit: 10,           // only ONE product
+    limit: 1,           // only ONE product
   );
 
   if (unsynced.isEmpty) {
@@ -685,5 +685,69 @@ Future<List<Productclass>> getAllProductsOnline() async {
     }
   }
 
-  
+  Future<void> syncSingleProductOnline(int productId) async {
+  final db = await localDb.database;
+
+  // ✅ Get product by id
+  final pList = await db.query(
+    'products',
+    where: 'id = ?',
+    whereArgs: [productId],
+  );
+
+  if (pList.isEmpty) return;
+  final p = pList.first;
+
+  final clientUuid = p['client_uuid']?.toString();
+  if (clientUuid == null || clientUuid.isEmpty) return;
+
+  final price = (p['price'] is int) ? (p['price'] as int).toDouble() : (p['price'] as double);
+  final stock = p['stock'] as int;
+  final isPromo = (p['is_promo'] ?? 0) == 1;
+  final otherQty = p['other_qty'] as int;
+
+  try {
+    final existing = await supabase
+        .from('products')
+        .select('id')
+        .eq('client_uuid', clientUuid)
+        .maybeSingle();
+
+    if (existing != null) {
+      // Update only
+      await supabase.from('products').update({
+        'name': p['name'],
+        'price': price,
+        'stock': stock,
+        'is_promo': isPromo,
+        'other_qty': otherQty,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', existing['id']);
+      print("🔁 Updated product '${p['name']}' on Supabase");
+    } else {
+      // Insert new
+      await supabase.from('products').insert({
+        'name': p['name'],
+        'price': price,
+        'stock': stock,
+        'is_promo': isPromo,
+        'other_qty': otherQty,
+        'client_uuid': clientUuid,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+      print("➕ Inserted product '${p['name']}' to Supabase");
+    }
+
+    // Mark as synced locally
+    await db.update(
+      'products',
+      {'is_synced': 1},
+      where: 'id = ?',
+      whereArgs: [p['id']],
+    );
+  } catch (e) {
+    print("❌ Failed to sync ${p['name']}: $e");
+  }
+}
+
 }
