@@ -641,6 +641,30 @@ Future<int> updateProductStock(int id, int stock) async {
 }
 
 
+Future<void> updateProduct({
+  required int id,
+  required int stock,
+  double? price,
+  bool? isPromo,
+  int? otherQty,
+}) async {
+  final db = await database;
+  await db.update(
+    'products',
+    {
+      'stock': stock,
+      'price': price,
+      'is_promo': isPromo == true ? 1 : 0,
+      'other_qty': otherQty ?? 0,
+      'is_synced': 0, // mark as unsynced
+      'updated_at': DateTime.now().toIso8601String(), // mark update
+    },
+    where: 'id = ?',
+    whereArgs: [id],
+  );
+}
+
+
 
 // ------------------- TRANSACTIONS CRUD ------------------- //
 // 🔹 Insert a new transaction (ignores conflict if ID exists)

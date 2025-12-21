@@ -276,6 +276,28 @@ class ProductService {
     return await InternetConnectionChecker().hasConnection;
   }
 
+
+
+
+
+
+Future<void> updateStockOnline({
+  required String clientUuid,
+  required int newStock,
+}) async {
+  await supabase
+      .from('products')
+      .update({'stock': newStock})
+      .eq('client_uuid', clientUuid);
+}
+
+
+
+
+
+
+
+
   // -----------------------------
   // CORE SYNC FUNCTION
  Future<void> syncOnlineProducts() async {
@@ -293,7 +315,7 @@ class ProductService {
     where: 'is_synced = ?',
     whereArgs: [0],
     orderBy: 'id DESC', // latest first
-    limit: 1,           // only ONE product
+    limit: 10,           // only ONE product
   );
 
   if (unsynced.isEmpty) {
@@ -662,4 +684,6 @@ Future<List<Productclass>> getAllProductsOnline() async {
       }
     }
   }
+
+  
 }
