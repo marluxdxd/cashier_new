@@ -368,15 +368,8 @@ class ProductService {
   print("✅ All offline products synced to Supabase");
 }
 
-  // -----------------------------
-  // GET ALL PRODUCTS (LOCAL VIEW)
-  Future<List<Productclass>> getAllProducts2() async {
-    final db = await localDb.database;
-    final res = await db.query('products', orderBy: 'name ASC');
-    return res.map((e) => Productclass.fromMap(e)).toList();
-  }
 
-  // ------------------- SYNC UNSYNCED PRODUCTS -------------------
+// ------------------- SYNC UNSYNCED PRODUCTS -------------------
   Future<void> syncOfflineProducts() async {
     final online = await isOnline1();
     if (!online) {
@@ -461,6 +454,50 @@ final unsynced = await localDb.database.then(
 
     print("All offline products synced to Supabase");
   }
+
+
+  // -----------------------------
+    // -----------------------------
+      // -----------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+  // -----------------------------
+  // GET ALL PRODUCTS (LOCAL VIEW)
+  Future<List<Productclass>> getAllProducts2() async {
+    final db = await localDb.database;
+    final res = await db.query('products', orderBy: 'name ASC');
+    return res.map((e) => Productclass.fromMap(e)).toList();
+  }
+
+  // GET ALL PRODUCTS (ONLINE VIEW)
+Future<List<Productclass>> getAllProductsOnline() async {
+  try {
+    final data = await supabase
+        .from('products')
+        .select()
+        .order('name', ascending: true);
+
+    return (data as List)
+        .map((e) => Productclass.fromMap(e as Map<String, dynamic>))
+        .toList();
+  } catch (e) {
+    print("❌ Failed to fetch online products: $e");
+    return [];
+  }
+}
+
+
+  
 
   Future<bool> isOnline1() async {
     // Check if device is online
