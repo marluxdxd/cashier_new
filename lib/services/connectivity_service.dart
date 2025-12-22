@@ -18,7 +18,7 @@ class ConnectivityService {
         print("Device is online! Syncing offline products...");
         await productService.syncOfflineProducts();
         await transactionService.syncOfflineTransactions(); // auto-sync transactions
-        await transactionItemService.syncOfflineTransactionItem(); // auto-sync transactionsitem
+        // await transactionItemService.syncOfflineTransactionItem(); // auto-sync transactionsitem
         print("Check synced items in local DB:");
 final syncedItems = await transactionItemService.getTransactionItemsOffline(1);
 for (var item in syncedItems) {

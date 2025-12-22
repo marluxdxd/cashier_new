@@ -1,5 +1,6 @@
 import 'package:cashier/services/connectivity_service.dart';
 import 'package:cashier/services/product_service.dart';
+import 'package:cashier/services/stock_history_sync.dart';
 import 'package:cashier/services/sync_service.dart';
 import 'package:cashier/services/transaction_service.dart';
 import 'package:cashier/services/transactionitem_service.dart';
@@ -27,6 +28,9 @@ void main() async {
   final productService = ProductService();
   final transactionService = TransactionService ();
   final transactionItemService = TransactionItemService();
+final  stockHistoryService = StockHistorySyncService(); // create instance
+
+
   ConnectivityService(productService: productService, transactionService: TransactionService(), transactionItemService: transactionItemService); // auto-listen
   
 

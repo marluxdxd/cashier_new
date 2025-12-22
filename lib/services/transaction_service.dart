@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:cashier/class/product_offline.dart';
 import 'package:cashier/database/local_db.dart';
 import 'package:cashier/database/supabase.dart';
+import 'package:cashier/services/product_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart'; // For formatted timestamp
@@ -122,72 +123,83 @@ class TransactionService {
 
   //---------------- Sync Offline Transactions ----------------
   Future<void> syncOfflineTransactions() async {
-    final online = await isOnline2();
-    if (!online) return;
+  final db = await localDb.database;
+  final online = await isOnline2();
+  if (!online) return;
 
-    final db = await localDb.database;
+  final transactions = await db.query(
+    'transactions',
+    where: 'is_synced = 0',
+  );
 
-    final unsyncedTransactions = await db.query(
-      'transactions',
-      where: 'is_synced = ?',
-      whereArgs: [0],
-    );
+  for (final trx in transactions) {
+    try {
+      // 1️⃣ INSERT TRANSACTION TO SUPABASE
+      final trxRes = await supabase
+          .from('transactions')
+          .insert({
+            'total': trx['total'],
+            'cash': trx['cash'],
+            'change': trx['change'],
+            'created_at': trx['created_at'],
+          })
+          .select()
+          .single();
 
-    for (var t in unsyncedTransactions) {
-      try {
-        // Insert into Supabase
-        final result = await supabase.from('transactions').insert({
-          'total': t['total'],
-          'cash': t['cash'],
-          'change': t['change'],
-          'created_at': t['created_at'], // Use local PHT timestamp
-        }).select();
+      final supaTransactionId = trxRes['id'] as int;
 
-        final newTransactionId = result[0]['id'];
+      // 2️⃣ SAVE SUPABASE ID LOCALLY
+      await db.update(
+        'transactions',
+        {'supabase_id': supaTransactionId},
+        where: 'id = ?',
+        whereArgs: [trx['id']],
+      );
 
-        // Sync transaction_items
-        final items = await db.query(
-          'transaction_items',
-          where: 'transaction_id = ? AND is_synced = ?',
-          whereArgs: [t['id'], 0],
-        );
+      // 3️⃣ GET LOCAL ITEMS USING LOCAL TRANSACTION ID
+      final items = await db.query(
+        'transaction_items',
+        where: 'transaction_id = ? AND is_synced = 0',
+        whereArgs: [trx['id']],
+      );
 
-        for (var item in items) {
-          await supabase.from('transaction_items').insert({
-            'transaction_id': newTransactionId,
-            'product_id': item['product_id'],
-            'product_name': item['product_name'],
-            'qty': item['qty'],
-            'price': item['price'],
-            'is_promo': item['is_promo'] == 1,
-            'other_qty': item['other_qty'],
-          });
+      // 4️⃣ INSERT ITEMS USING SUPABASE TRANSACTION ID
+      for (final item in items) {
+        await supabase.from('transaction_items').upsert({
+          'transaction_id': supaTransactionId, // ✅ FIXED
+          'product_id': item['product_id'],
+          'product_name': item['product_name'],
+          'qty': item['qty'],
+          'price': item['price'],
+          'is_promo': item['is_promo'] == 1,
+          'other_qty': item['other_qty'],
+          'product_client_uuid': item['product_client_uuid'] ??
+              generateUniqueId(prefix: 'P'),
+        }, onConflict: 'product_client_uuid');
 
-          // Mark item as synced locally
-          await db.update(
-            'transaction_items',
-            {'is_synced': 1},
-            where: 'id = ?',
-            whereArgs: [item['id']],
-          );
-        }
-
-        // Mark transaction as synced locally
         await db.update(
-          'transactions',
+          'transaction_items',
           {'is_synced': 1},
           where: 'id = ?',
-          whereArgs: [t['id']],
+          whereArgs: [item['id']],
         );
-
-        print("Transaction ${t['id']} synced → Supabase ID: $newTransactionId");
-      } catch (e) {
-        print("Failed to sync transaction ${t['id']}: $e");
       }
-    }
 
-    print("All offline transactions synced!");
+      // 5️⃣ MARK TRANSACTION SYNCED
+      await db.update(
+        'transactions',
+        {'is_synced': 1},
+        where: 'id = ?',
+        whereArgs: [trx['id']],
+      );
+
+      print("✅ Transaction ${trx['id']} synced → Supabase ID $supaTransactionId");
+    } catch (e) {
+      print("❌ Failed to sync transaction ${trx['id']}: $e");
+    }
   }
+}
+
 
   //---------------- Validation & Calculation ----------------
   bool isCashSufficient(double total, double cash) {

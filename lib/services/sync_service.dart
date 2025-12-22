@@ -66,8 +66,10 @@ class SyncService {
         int supabaseTrxId = uploaded['id'];
 
         // 3️⃣ Get all items for this transaction
-        final items = await localDb.getItemsForTransaction(trx['id']);
+       final localTransactionId = trx['id'];
+final supabaseTransactionId = trx['supabase_id'];
 
+final items = await localDb.getItemsForTransaction(localTransactionId);
         for (var item in items) {
           await supabase.from('transaction_items').insert({
             'transaction_id': supabaseTrxId, // ← use Supabase ID

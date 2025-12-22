@@ -108,6 +108,7 @@ class _HomeState extends State<Home> {
     _listener?.cancel();
     _connectivityListener?.cancel();
     customerCashController.dispose(); // existing controller dispose
+    
     super.dispose();
   }
 
