@@ -63,7 +63,7 @@ class SyncService {
             .select()
             .single();
 
-        int supabaseTrxId = uploaded['id'];
+        int supabaseTrxId = uploaded['id']; 
 
         // 3️⃣ Get all items for this transaction
        final localTransactionId = trx['id'];

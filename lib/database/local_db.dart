@@ -194,8 +194,8 @@ FROM old_product_stock_history
     // Product stock history
     await db.execute('''
       CREATE TABLE product_stock_history (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  product_id INTEGER,
+  id INTEGER PRIMARY KEY,
+  product_id INTEGER NOT NULL,
   old_stock INTEGER,
   qty_changed INTEGER,
   new_stock INTEGER,

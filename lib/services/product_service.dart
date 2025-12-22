@@ -143,7 +143,7 @@ class ProductService {
     print("Stock reduced for product $productId: $oldStock → $newStock");
   }
 
- Future<void> syncOfflineStockHistory() async {
+Future<void> syncOfflineStockHistory() async {
   final db = await localDb.database;
 
   final unsyncedHistory = await db.query(
@@ -159,17 +159,72 @@ class ProductService {
 
   for (var entry in unsyncedHistory) {
     try {
-      // ✅ INSERT ONE ROW ONLY
+      final productId = entry['product_id'];
+
+      // 1️⃣ Get product locally
+      final productList = await db.query(
+        'products',
+        where: 'id = ?',
+        whereArgs: [productId],
+      );
+
+      if (productList.isEmpty) {
+        print("⚠️ Product $productId not found locally. Skipping stock history.");
+        continue;
+      }
+
+      final product = productList.first;
+      String? clientUuid = product['client_uuid']?.toString();
+if (clientUuid == null || clientUuid.isEmpty) {
+    clientUuid =
+      "P_${DateTime.now().millisecondsSinceEpoch}_${DateTime.now().microsecondsSinceEpoch}";
+}
+      // 2️⃣ Ensure product exists in Supabase
+      final existingProduct = await supabase
+          .from('products')
+          .select('id')
+          .eq('client_uuid', clientUuid)
+          .maybeSingle();
+
+      int supaProductId;
+      if (existingProduct != null) {
+        supaProductId = existingProduct['id'] as int;
+      } else {
+        // Insert missing product first
+        if (clientUuid == null || clientUuid.isEmpty) {
+          clientUuid =
+              "P_${DateTime.now().millisecondsSinceEpoch}_${DateTime.now().microsecondsSinceEpoch}";
+        }
+
+        final inserted = await supabase.from('products').insert({
+          'name': product['name'],
+          'price': product['price'],
+          'stock': product['stock'],
+          'is_promo': product['is_promo'] == 1,
+          'other_qty': product['other_qty'],
+          'client_uuid': clientUuid,
+        }).select('id').maybeSingle();
+
+        if (inserted == null || inserted['id'] == null) {
+          print("❌ Failed to insert product $productId. Skipping stock history.");
+          continue;
+        }
+
+        supaProductId = inserted['id'] as int;
+        print("➕ Inserted missing product '${product['name']}' to Supabase");
+      }
+
+      // 3️⃣ Insert stock history
       await supabase.from('product_stock_history').insert({
-        'product_id': entry['product_id'],
+        'product_id': supaProductId,
         'old_stock': entry['old_stock'],
         'new_stock': entry['new_stock'],
         'qty_changed': entry['qty_changed'],
-        'change_type': entry['type'], // ✅ FIXED COLUMN NAME
+        'change_type': entry['type'],
         'created_at': entry['created_at'],
       });
 
-      // ✅ Mark as synced locally
+      // 4️⃣ Mark as synced locally
       await db.update(
         'product_stock_history',
         {'is_synced': 1},
@@ -186,54 +241,73 @@ class ProductService {
   print("🎉 All offline stock history synced!");
 }
 
-  // Get all products from local DB
-  Future<List<Map<String, dynamic>>> getLocalProducts() async {
-    final db = await localDb.database;
-    return await db.query('products');
+  //-----------------------LOCAL---------------------------------//
+Future<void> syncSingleProduct(int localId) async {
+  final db = await localDb.database;
+  final productList = await db.query(
+    'products',
+    where: 'id = ?',
+    whereArgs: [localId],
+  );
+  if (productList.isEmpty) return;
+
+  final p = productList.first;
+  final clientUuid = p['client_uuid']?.toString();
+
+  if (clientUuid == null || clientUuid.isEmpty) {
+    print("⚠️ Product '${p['name']}' has no client_uuid, skipping sync.");
+    return;
   }
 
-  //-----------------------LOCAL---------------------------------//
-  Future<void> syncSingleProduct(int localId) async {
-    final db = await localDb.database;
-    final productList = await db.query(
-      'products',
-      where: 'id = ?',
-      whereArgs: [localId],
-    );
-    if (productList.isEmpty) return;
+  try {
+    // Check if product already exists in Supabase
+    final existing = await supabase
+        .from('products')
+        .select('id')
+        .eq('client_uuid', clientUuid)
+        .maybeSingle();
 
-    final p = productList.first;
+    final name = p['name']?.toString() ?? '';
+    final price = (p['price'] as num).toDouble();
+    final stock = p['stock'] as int;
+    final isPromo = (p['is_promo'] == 1);
+    final otherQty = p['other_qty'] as int? ?? 0;
 
-    try {
-      // Convert SQLite fields to proper types
-      final name = p['name']?.toString() ?? '';
-      final price = (p['price'] as num).toDouble();
-      final stock = p['stock'] as int;
-      final isPromo = (p['is_promo'] == 1);
-      final otherQty = p['other_qty'] as int? ?? 0;
-
-      // Insert into Supabase
+    if (existing != null) {
+      // 🔁 Update existing product
+      await supabase.from('products').update({
+        'name': name,
+        'price': price,
+        'stock': stock,
+        'is_promo': isPromo,
+        'other_qty': otherQty,
+      }).eq('id', existing['id']);
+      print("🔁 Updated product '$name' on Supabase");
+    } else {
+      // ➕ Insert new product
       await supabase.from('products').insert({
         'name': name,
         'price': price,
         'stock': stock,
         'is_promo': isPromo,
         'other_qty': otherQty,
+        'client_uuid': clientUuid,
       });
-
-      // Mark as synced
-      await db.update(
-        'products',
-        {'is_synced': 1},
-        where: 'id = ?',
-        whereArgs: [localId],
-      );
-
-      print("Product '$name' synced successfully!");
-    } catch (e) {
-      print("Failed to sync product '${p['name']}': $e");
+      print("➕ Inserted product '$name' to Supabase");
     }
+
+    // Mark as synced locally
+    await db.update(
+      'products',
+      {'is_synced': 1},
+      where: 'id = ?',
+      whereArgs: [localId],
+    );
+  } catch (e) {
+    print("❌ Failed to sync product '${p['name']}': $e");
   }
+}
+
 
   Future<int> insertProductOffline({
     required String name,
@@ -266,130 +340,119 @@ class ProductService {
     return await InternetConnectionChecker().hasConnection;
   }
 
-
-
-
-
-
-Future<void> updateStockOnline({
-  required String clientUuid,
-  required int newStock,
-}) async {
-  await supabase
-      .from('products')
-      .update({'stock': newStock})
-      .eq('client_uuid', clientUuid);
-}
-
-
-
-
-
-
-
+  Future<void> updateStockOnline({
+    required String clientUuid,
+    required int newStock,
+  }) async {
+    await supabase
+        .from('products')
+        .update({'stock': newStock})
+        .eq('client_uuid', clientUuid);
+  }
 
   // -----------------------------
   // CORE SYNC FUNCTION
- Future<void> syncOnlineProducts() async {
-  final online = await isOnline2();
-  if (!online) {
-    print("❌ Offline: cannot sync");
-    return;
-  }
-
-  final db = await localDb.database;
-
-  // ✅ Get latest unsynced product
-  final unsynced = await db.query(
-    'products',
-    where: 'is_synced = ?',
-    whereArgs: [0],
-    orderBy: 'id DESC', // latest first
-    limit: 1,           // only ONE product
-  );
-
-  if (unsynced.isEmpty) {
-    print("✅ No products to sync");
-    return;
-  }
-
-  for (final p in unsynced) {
-    final clientUuid = p['client_uuid']?.toString();
-    if (clientUuid == null || clientUuid.isEmpty) {
-      print("⚠️ Skipping product without client_uuid: ${p['name']}");
-      continue;
+  Future<void> syncOnlineProducts() async {
+    final online = await isOnline2();
+    if (!online) {
+      print("❌ Offline: cannot sync");
+      return;
     }
 
-    // 🔹 Safe type casting
-    final price = p['price'] is int
-        ? (p['price'] as int).toDouble()
-        : p['price'] is double
-            ? p['price'] as double
-            : 0.0;
+    final db = await localDb.database;
 
-    final stock = p['stock'] is int ? p['stock'] as int : 0;
-    final isPromo = (p['is_promo'] ?? 0) == 1;
-    final otherQty = p['other_qty'] is int ? p['other_qty'] as int : 0;
-    
+    // ✅ Get latest unsynced product
+    final unsynced = await db.query(
+      'products',
+      where: 'is_synced = ?',
+      whereArgs: [0],
+      orderBy: 'id DESC', // latest first
+      limit: 1, // only ONE product
+    );
 
-    try {
-      // 1️⃣ Check if product with same client_uuid exists in Supabase
-      final existing = await supabase
-          .from('products')
-          .select('id')
-          .eq('client_uuid', clientUuid)
-          .maybeSingle();
+    if (unsynced.isEmpty) {
+      print("✅ No products to sync");
+      return;
+    }
 
-      if (existing != null) {
-        // 🔁 UPDATE existing product
-        await supabase.from('products').update({
-          'name': p['name'],
-          'price': price,
-          'stock': stock,
-          'is_promo': isPromo,
-          'other_qty': otherQty,
-        }).eq('id', existing['id']);
-        print("🔁 Updated product '${p['name']}' on Supabase");
-      } else {
-        // ➕ INSERT new product
-        await supabase.from('products').insert({
-          'name': p['name'],
-          'price': price,
-          'stock': stock,
-          'is_promo': isPromo,
-          'other_qty': otherQty,
-          'client_uuid': clientUuid,
-        });
-        print("➕ Inserted product '${p['name']}' to Supabase");
+    for (final p in unsynced) {
+      final clientUuid = p['client_uuid']?.toString();
+      if (clientUuid == null || clientUuid.isEmpty) {
+        print("⚠️ Skipping product without client_uuid: ${p['name']}");
+        continue;
       }
 
-      // 2️⃣ Mark product as synced locally
-      await db.update(
-        'products',
-        {'is_synced': 1},
-        where: 'id = ?',
-        whereArgs: [p['id']],
-      );
+      // 🔹 Safe type casting
+      final price = p['price'] is int
+          ? (p['price'] as int).toDouble()
+          : p['price'] is double
+          ? p['price'] as double
+          : 0.0;
 
-      print("✅ Synced product '${p['name']}' successfully!");
-    } catch (e) {
-      print("❌ Failed to sync ${p['name']}: $e");
+      final stock = p['stock'] is int ? p['stock'] as int : 0;
+      final isPromo = (p['is_promo'] ?? 0) == 1;
+      final otherQty = p['other_qty'] is int ? p['other_qty'] as int : 0;
+
+      try {
+        // 1️⃣ Check if product with same client_uuid exists in Supabase
+        final existing = await supabase
+            .from('products')
+            .select('id')
+            .eq('client_uuid', clientUuid)
+            .maybeSingle();
+
+        if (existing != null) {
+          // 🔁 UPDATE existing product
+          await supabase
+              .from('products')
+              .update({
+                'name': p['name'],
+                'price': price,
+                'stock': stock,
+                'is_promo': isPromo,
+                'other_qty': otherQty,
+              })
+              .eq('id', existing['id']);
+          print("🔁 Updated product '${p['name']}' on Supabase");
+        } else {
+          // ➕ INSERT new product
+          await supabase.from('products').insert({
+            'name': p['name'],
+            'price': price,
+            'stock': stock,
+            'is_promo': isPromo,
+            'other_qty': otherQty,
+            'client_uuid': clientUuid,
+          });
+          print("➕ Inserted product '${p['name']}' to Supabase");
+        }
+
+        // 2️⃣ Mark product as synced locally
+        await db.update(
+          'products',
+          {'is_synced': 1},
+          where: 'id = ?',
+          whereArgs: [p['id']],
+        );
+
+        print("✅ Synced product '${p['name']}' successfully!");
+      } catch (e) {
+        print("❌ Failed to sync ${p['name']}: $e");
+      }
     }
+
+    print("✅ All offline products synced to Supabase");
   }
 
-  print("✅ All offline products synced to Supabase");
-}
-
-
-// ------------------- SYNC UNSYNCED PRODUCTS -------------------
+  // ------------------- SYNC UNSYNCED PRODUCTS -------------------
   Future<void> syncOfflineProducts() async {
     final online = await isOnline1();
     if (!online) {
       print("Offline: cannot sync to Supabase");
       return;
     }
-final unsynced = await localDb.database.then(
-  (db) => db.rawQuery('''
+    final unsynced = await localDb.database.then(
+      (db) => db.rawQuery('''
     SELECT p.*
     FROM products p
     JOIN product_stock_history h
@@ -397,7 +460,7 @@ final unsynced = await localDb.database.then(
     WHERE h.is_synced = 0
     ORDER BY h.created_at DESC
   '''),
-);
+    );
     for (var p in unsynced) {
       final clientUuid = p['client_uuid']?.toString();
       if (clientUuid == null || clientUuid.isEmpty) {
@@ -456,21 +519,9 @@ final unsynced = await localDb.database.then(
     print("All offline products synced to Supabase");
   }
 
-
   // -----------------------------
-    // -----------------------------
-      // -----------------------------
-
-
-
-
-
-
-
-
-
-
-
+  // -----------------------------
+  // -----------------------------
 
   // -----------------------------
   // GET ALL PRODUCTS (LOCAL VIEW)
@@ -481,24 +532,21 @@ final unsynced = await localDb.database.then(
   }
 
   // GET ALL PRODUCTS (ONLINE VIEW)
-Future<List<Productclass>> getAllProductsOnline() async {
-  try {
-    final data = await supabase
-        .from('products')
-        .select()
-        .order('name', ascending: true);
+  Future<List<Productclass>> getAllProductsOnline() async {
+    try {
+      final data = await supabase
+          .from('products')
+          .select()
+          .order('name', ascending: true);
 
-    return (data as List)
-        .map((e) => Productclass.fromMap(e as Map<String, dynamic>))
-        .toList();
-  } catch (e) {
-    print("❌ Failed to fetch online products: $e");
-    return [];
+      return (data as List)
+          .map((e) => Productclass.fromMap(e as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      print("❌ Failed to fetch online products: $e");
+      return [];
+    }
   }
-}
-
-
-  
 
   Future<bool> isOnline1() async {
     // Check if device is online
@@ -615,147 +663,154 @@ Future<List<Productclass>> getAllProductsOnline() async {
     await supabase.from('products').delete().eq('id', id);
   }
 
- Future<void> syncOfflineTransactions() async {
-  final online = await isOnline1();
-  if (!online) return;
+  Future<void> syncOfflineTransactions() async {
+    final online = await isOnline1();
+    if (!online) return;
 
-  final unsynced = await localDb.getUnsyncedTransactions(); // is_synced = 0
+    final unsynced = await localDb.getUnsyncedTransactions(); // is_synced = 0
 
-  for (var trx in unsynced) {
-    try {
-      // ---------------- 1️⃣ Check or insert transaction ----------------
-      final existingTrx = await supabase
-          .from('transactions')
-          .select('id')
-          .eq('offline_id', trx['id'])
-          .maybeSingle();
+    for (var trx in unsynced) {
+      try {
+        // ---------------- 1️⃣ Check or insert transaction ----------------
+        final existingTrx = await supabase
+            .from('transactions')
+            .select('id')
+            .eq('offline_id', trx['id'])
+            .maybeSingle();
 
-      int supaTransactionId;
+        int supaTransactionId;
 
-      if (existingTrx == null) {
-        // Insert new transaction
-        final inserted = await supabase.from('transactions').insert({
-          'total': trx['total'],
-          'cash': trx['cash'],
-          'change': trx['change'],
-          'created_at': trx['created_at'],
-          'offline_id': trx['id'],
-          'client_uuid': trx['client_uuid'] ?? generateUniqueId(prefix: "T"),
-        }).select('id').maybeSingle();
+        if (existingTrx == null) {
+          // Insert new transaction
+          final inserted = await supabase
+              .from('transactions')
+              .insert({
+                'total': trx['total'],
+                'cash': trx['cash'],
+                'change': trx['change'],
+                'created_at': trx['created_at'],
+                'offline_id': trx['id'],
+                'client_uuid':
+                    trx['client_uuid'] ?? generateUniqueId(prefix: "T"),
+              })
+              .select('id')
+              .maybeSingle();
 
-        if (inserted == null || inserted['id'] == null) {
-          print("❌ Failed to insert transaction ${trx['id']}");
-          continue;
+          if (inserted == null || inserted['id'] == null) {
+            print("❌ Failed to insert transaction ${trx['id']}");
+            continue;
+          }
+
+          supaTransactionId = inserted['id'] as int;
+        } else {
+          supaTransactionId = existingTrx['id'] as int;
         }
 
-        supaTransactionId = inserted['id'] as int;
-      } else {
-        supaTransactionId = existingTrx['id'] as int;
-      }
+        // ---------------- 2️⃣ Insert transaction items ----------------
+        final localTransactionId = trx['id'];
+        final supabaseTransactionId = trx['supabase_id'];
 
-      // ---------------- 2️⃣ Insert transaction items ----------------
-      final localTransactionId = trx['id'];
-final supabaseTransactionId = trx['supabase_id'];
+        final items = await localDb.getItemsForTransaction(localTransactionId);
 
-final items = await localDb.getItemsForTransaction(localTransactionId);
+        for (var item in items) {
+          try {
+            await supabase.from('transaction_items').upsert({
+              'transaction_id': supaTransactionId,
+              'product_id': item['product_id'],
+              'qty': item['qty'],
+              'price': item['price'],
+              'product_name': item['product_name'],
+              'is_promo': item['is_promo'] == 1,
+              'other_qty': item['other_qty'],
+              'product_client_uuid':
+                  item['product_client_uuid'] ?? generateUniqueId(prefix: "P"),
+            }, onConflict: 'product_client_uuid'); // pass as string, not list
 
-      for (var item in items) {
-        try {
-      await supabase.from('transaction_items').upsert({
-  'transaction_id': supaTransactionId,
-  'product_id': item['product_id'],
-  'qty': item['qty'],
-  'price': item['price'],
-  'product_name': item['product_name'],
-  'is_promo': item['is_promo'] == 1,
-  'other_qty': item['other_qty'],
-  'product_client_uuid': item['product_client_uuid'] ??
-      generateUniqueId(prefix: "P"),
-}, onConflict: 'product_client_uuid'); // pass as string, not list
-
-          // Mark item as synced locally
-          await localDb.markItemSynced(item['id']);
-        } catch (e) {
-          print("❌ Failed to sync item ${item['id']}: $e");
+            // Mark item as synced locally
+            await localDb.markItemSynced(item['id']);
+          } catch (e) {
+            print("❌ Failed to sync item ${item['id']}: $e");
+          }
         }
-      }
 
-      // ---------------- 3️⃣ Mark transaction as synced ----------------
-      await localDb.markTransactionSynced(trx['id']);
-      print("✅ Transaction ${trx['id']} and items synced successfully!");
-    } catch (e) {
-      print("❌ Failed to sync transaction ${trx['id']}: $e");
+        // ---------------- 3️⃣ Mark transaction as synced ----------------
+        await localDb.markTransactionSynced(trx['id']);
+        print("✅ Transaction ${trx['id']} and items synced successfully!");
+      } catch (e) {
+        print("❌ Failed to sync transaction ${trx['id']}: $e");
+      }
     }
+
+    print("✅ All offline transactions synced!");
   }
-
-  print("✅ All offline transactions synced!");
-}
-
-
 
   Future<void> syncSingleProductOnline(int productId) async {
-  final db = await localDb.database;
+    final db = await localDb.database;
 
-  // ✅ Get product by id
-  final pList = await db.query(
-    'products',
-    where: 'id = ?',
-    whereArgs: [productId],
-  );
-
-  if (pList.isEmpty) return;
-  final p = pList.first;
-
-  final clientUuid = p['client_uuid']?.toString();
-  if (clientUuid == null || clientUuid.isEmpty) return;
-
-  final price = (p['price'] is int) ? (p['price'] as int).toDouble() : (p['price'] as double);
-  final stock = p['stock'] as int;
-  final isPromo = (p['is_promo'] ?? 0) == 1;
-  final otherQty = p['other_qty'] as int;
-
-  try {
-    final existing = await supabase
-        .from('products')
-        .select('id')
-        .eq('client_uuid', clientUuid)
-        .maybeSingle();
-
-    if (existing != null) {
-      // Update only
-      await supabase.from('products').update({
-        'name': p['name'],
-        'price': price,
-        'stock': stock,
-        'is_promo': isPromo,
-        'other_qty': otherQty,
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', existing['id']);
-      print("🔁 Updated product '${p['name']}' on Supabase");
-    } else {
-      // Insert new
-      await supabase.from('products').insert({
-        'name': p['name'],
-        'price': price,
-        'stock': stock,
-        'is_promo': isPromo,
-        'other_qty': otherQty,
-        'client_uuid': clientUuid,
-        'updated_at': DateTime.now().toIso8601String(),
-      });
-      print("➕ Inserted product '${p['name']}' to Supabase");
-    }
-
-    // Mark as synced locally
-    await db.update(
+    // ✅ Get product by id
+    final pList = await db.query(
       'products',
-      {'is_synced': 1},
       where: 'id = ?',
-      whereArgs: [p['id']],
+      whereArgs: [productId],
     );
-  } catch (e) {
-    print("❌ Failed to sync ${p['name']}: $e");
-  }
-}
 
+    if (pList.isEmpty) return;
+    final p = pList.first;
+
+    final clientUuid = p['client_uuid']?.toString();
+    if (clientUuid == null || clientUuid.isEmpty) return;
+
+    final price = (p['price'] is int)
+        ? (p['price'] as int).toDouble()
+        : (p['price'] as double);
+    final stock = p['stock'] as int;
+    final isPromo = (p['is_promo'] ?? 0) == 1;
+    final otherQty = p['other_qty'] as int;
+
+    try {
+      final existing = await supabase
+          .from('products')
+          .select('id')
+          .eq('client_uuid', clientUuid)
+          .maybeSingle();
+
+      if (existing != null) {
+        // Update only
+        await supabase
+            .from('products')
+            .update({
+              'name': p['name'],
+              'price': price,
+              'stock': stock,
+              'is_promo': isPromo,
+              'other_qty': otherQty,
+              'updated_at': DateTime.now().toIso8601String(),
+            })
+            .eq('id', existing['id']);
+        print("🔁 Updated product '${p['name']}' on Supabase");
+      } else {
+        // Insert new
+        await supabase.from('products').insert({
+          'name': p['name'],
+          'price': price,
+          'stock': stock,
+          'is_promo': isPromo,
+          'other_qty': otherQty,
+          'client_uuid': clientUuid,
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+        print("➕ Inserted product '${p['name']}' to Supabase");
+      }
+
+      // Mark as synced locally
+      await db.update(
+        'products',
+        {'is_synced': 1},
+        where: 'id = ?',
+        whereArgs: [p['id']],
+      );
+    } catch (e) {
+      print("❌ Failed to sync ${p['name']}: $e");
+    }
+  }
 }

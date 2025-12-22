@@ -466,6 +466,7 @@ class _HomeState extends State<Home> {
       await productService.syncOnlineProducts();
       await productService.syncOfflineStockHistory();
       await productService.syncOfflineProducts();
+await productService.syncOfflineStockHistory(); // then run this
     }
 
     // ================= UI =================
