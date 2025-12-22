@@ -27,28 +27,63 @@ class TransactionService {
 
   /////////////////////////////////////////////////////////////////////////
 
-  Future<List<Map<String, dynamic>>> fetchTransactions() async {
-    final data = await supabase
-        .from('transactions')
-        .select()
-        .order('created_at', ascending: false);
+// Fetch all transactions: merge local unsynced + online
+  Future<List<Map<String, dynamic>>> fetchAllTransactions() async {
+    // 1️⃣ Get local transactions (both synced and unsynced)
+    final localTransactions = await localDb.getAllTransactions();
 
-    // Supabase returns List<dynamic>, so we cast
-    return List<Map<String, dynamic>>.from(data as List<dynamic>);
+    // 2️⃣ Get online transactions
+    List<Map<String, dynamic>> onlineTransactions = [];
+    try {
+      final data = await supabase
+          .from('transactions')
+          .select()
+          .order('created_at', ascending: false);
+
+      onlineTransactions = List<Map<String, dynamic>>.from(data as List<dynamic>);
+    } catch (e) {
+      print("Failed to fetch online transactions: $e");
+    }
+
+    // 3️⃣ Merge local unsynced transactions with online
+    final merged = [
+      ...localTransactions,
+      ...onlineTransactions.where(
+        (o) => !localTransactions.any((l) => l['id'] == o['id']),
+      ),
+    ];
+
+    // Sort by timestamp descending
+    merged.sort((a, b) => (b['created_at'] ?? '').compareTo(a['created_at'] ?? ''));
+
+    return merged;
   }
 
-  // Fetch items for a specific transaction
-  Future<List<Map<String, dynamic>>> fetchTransactionItems(
-    int transactionId,
-  ) async {
-    final data = await supabase
-        .from('transaction_items')
-        .select()
-        .eq('transaction_id', transactionId);
+  // Fetch items for a specific transaction, local+online
+  Future<List<Map<String, dynamic>>> fetchAllTransactionItems(int transactionId) async {
+    final localItems = await localDb.getTransactionItemsByTransactionId(transactionId);
 
-    return List<Map<String, dynamic>>.from(data as List<dynamic>);
+    List<Map<String, dynamic>> onlineItems = [];
+    try {
+      final data = await supabase
+          .from('transaction_items')
+          .select()
+          .eq('transaction_id', transactionId);
+      onlineItems = List<Map<String, dynamic>>.from(data as List<dynamic>);
+    } catch (e) {
+      print("Failed to fetch online transaction items: $e");
+    }
+
+    // Merge local items not yet in online
+    final merged = [
+      ...localItems,
+      ...onlineItems.where(
+        (o) => !localItems.any((l) => l['id'] == o['id']),
+      ),
+    ];
+
+    return merged;
   }
-
   /////////////////////////////////////////////////////////////////////////
 
   /////////////////////////////////////////////////////////////////////////

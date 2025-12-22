@@ -717,28 +717,33 @@ FROM old_product_stock_history
 
   // ------------------- TRANSACTION ITEMS CRUD ------------------- //
   // 🔹 Insert a new transaction item (replace if ID exists)
-  Future<int> insertTransactionItem({
-    required int id,
-    required int transactionId,
-    required int productId,
-    required String productName,
-    required int qty,
-    required double price,
-    bool isPromo = false,
-    int otherQty = 0,
-  }) async {
-    final db = await database;
-    return await db.insert('transaction_items', {
-      'id': id,
-      'transaction_id': transactionId,
-      'product_id': productId,
-      'product_name': productName,
-      'qty': qty,
-      'price': price,
-      'is_promo': isPromo ? 1 : 0,
-      'other_qty': otherQty,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
-  }
+Future<int> insertTransactionItem({
+  required int id,
+  required int transactionId,
+  required int productId,
+  required String productName,
+  required int qty,
+  required double price,
+  bool isPromo = false,
+  int otherQty = 0,
+  int isSynced = 0, // 0 = not synced, 1 = synced
+  String? productClientUuid,
+}) async {
+  final db = await database;
+  return await db.insert('transaction_items', {
+    'id': id,
+    'transaction_id': transactionId,
+    'product_id': productId,
+    'product_name': productName,
+    'qty': qty,
+    'price': price,
+    'is_promo': isPromo ? 1 : 0,
+    'other_qty': otherQty,
+    'is_synced': isSynced,
+    'product_client_uuid': productClientUuid,
+  }, conflictAlgorithm: ConflictAlgorithm.replace);
+}
+
 
   // 🔹 Fetch all transactions (main table)
   Future<List<Map<String, dynamic>>> getAllTransactions() async {
@@ -798,4 +803,17 @@ FROM old_product_stock_history
     final res = await db.query('products', where: 'id = ?', whereArgs: [id]);
     return res.isNotEmpty;
   }
+  // Fetch all transactions
+
+
+// Fetch transaction items for a given transaction ID
+Future<List<Map<String, dynamic>>> getTransactionItemsByTransactionId(int transactionId) async {
+  final db = await database;
+  final result = await db.query(
+    'transaction_items',
+    where: 'transaction_id = ?',
+    whereArgs: [transactionId],
+  );
+  return result;
+}
 }

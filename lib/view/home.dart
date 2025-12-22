@@ -108,7 +108,7 @@ class _HomeState extends State<Home> {
     _listener?.cancel();
     _connectivityListener?.cancel();
     customerCashController.dispose(); // existing controller dispose
-    
+
     super.dispose();
   }
 
@@ -367,64 +367,64 @@ class _HomeState extends State<Home> {
   String timestamp = getPhilippineTimestampFormatted();
 
   try {
-    // ================= SAVE TRANSACTION =================
-    int transactionId;
+    // ================= 1️⃣ INSERT TRANSACTION LOCALLY =================
+    final int localTransactionId = generateUniqueId(prefix: "T").hashCode.abs();
+    await localDb.insertTransaction(
+      id: localTransactionId,
+      total: totalBill,
+      cash: cash,
+      change: change,
+      createdAt: timestamp,
+      isSynced: online ? 1 : 0,
+    );
 
-    if (!online) {
-      transactionId = await localDb.insertTransaction(
-        id: generateUniqueId(prefix: "T").hashCode.abs(),
+    // ================= 2️⃣ INSERT ONLINE TRANSACTION IF CONNECTED =================
+    int onlineTransactionId = localTransactionId;
+    if (online) {
+      onlineTransactionId = await transactionService.saveTransaction(
         total: totalBill,
         cash: cash,
         change: change,
-        createdAt: timestamp,
-        isSynced: 0,
-      );
-    } else {
-      transactionId = await transactionService.saveTransaction(
-        total: totalBill,
-        cash: cash,
-        change: change,
-      );
-
-      await localDb.insertTransaction(
-        id: generateUniqueId(prefix: "T").hashCode.abs(),
-        total: totalBill,
-        cash: cash,
-        change: change,
-        createdAt: timestamp,
-        isSynced: 1,
       );
     }
 
-    // ================= PROCESS ITEMS =================
+    // ================= 3️⃣ PROCESS EACH ITEM =================
     for (var row in rows) {
       if (row.product == null) continue;
-  final product = row.product!;
-  final localDb = LocalDatabase();
-  
-      int? oldStock = await localDb.getProductStock(row.product!.id);
+
+      final product = row.product!;
+      final qtySold = row.isPromo ? row.otherQty : row.qty;
+
+      // Insert transaction item locally
+      await localDb.insertTransactionItem(
+        id: generateUniqueId(prefix: "TI").hashCode.abs(),
+        transactionId: localTransactionId, // use local transaction ID
+        productId: product.id,
+        productName: product.name,
+        qty: qtySold,
+        price: product.price,
+        isPromo: product.isPromo,
+        otherQty: product.otherQty,
+      );
+
+      // Update local stock
+      int? oldStock = await localDb.getProductStock(product.id);
       if (oldStock == null) continue;
 
-      int qtySold = row.isPromo ? row.otherQty : row.qty;
       int newStock = oldStock - qtySold;
+      await localDb.updateProductStock(product.id, newStock);
+      await localDb.updateProduct(
+        id: product.id,
+        stock: newStock,
+        price: product.price,
+        isPromo: product.isPromo,
+        otherQty: product.otherQty,
+      );
 
-      await localDb.updateProductStock(row.product!.id, newStock);
-  // --- Step 3: Update local stock & mark as unsynced ---
-  await localDb.updateProduct(
-    id: product.id,
-    stock: newStock,
-    price: product.price,
-    isPromo: product.isPromo,
-    otherQty: product.otherQty,
-  );
-    // --- Step 4: Sync this single product online if online ---
-  final online = await InternetConnectionChecker().hasConnection;
-  if (online) {
-    await productService.syncSingleProductOnline(product.id);
-  }
+      // Insert stock history
       await localDb.insertStockHistory(
         id: generateUniqueId(prefix: "H").hashCode.abs(),
-        productId: row.product!.id,
+        productId: product.id,
         oldStock: oldStock,
         qtyChanged: qtySold,
         newStock: newStock,
@@ -434,42 +434,33 @@ class _HomeState extends State<Home> {
       );
 
       await localDb.insertStockUpdateQueue1(
-        productId: row.product!.id,
+        productId: product.id,
         qty: qtySold,
         type: 'SALE',
       );
 
+      // Sync online if connected
       if (online) {
+        await productService.syncSingleProductOnline(product.id);
+
         await transactionService.saveTransactionItem(
-          transactionId: transactionId,
-          product: row.product!,
+          transactionId: onlineTransactionId, // use online transaction ID
+          product: product,
           qty: qtySold,
-          isPromo: row.isPromo,
-          otherQty: row.otherQty,
-        );
-      } else {
-        await localDb.insertTransactionItem(
-          id: generateUniqueId(prefix: "TI").hashCode.abs(),
-          transactionId: transactionId,
-          productId: row.product!.id,
-          productName: row.product!.name,
-          qty: qtySold,
-          price: row.product!.price,
-          isPromo: row.isPromo,
-          otherQty: row.otherQty,
+          isPromo: product.isPromo,
+          otherQty: product.otherQty,
         );
       }
     }
 
-    // ================= FINAL SYNC =================
+    // ================= 4️⃣ FINAL ONLINE SYNC =================
     if (online) {
       await productService.syncOnlineProducts();
       await productService.syncOfflineStockHistory();
       await productService.syncOfflineProducts();
-await productService.syncOfflineStockHistory(); // then run this
     }
 
-    // ================= UI =================
+    // ================= 5️⃣ UPDATE UI =================
     if (mounted) {
       showDialog(
         context: context,
@@ -478,12 +469,11 @@ await productService.syncOfflineStockHistory(); // then run this
 
       customerCashController.clear();
       setState(() {
-        rows = [POSRow()];
+        rows = [POSRow()]; // reset POS rows
       });
     }
 
     print("✅ Transaction + Sync SUCCESS");
-
   } catch (e) {
     print("❌ Error saving transaction: $e");
     if (mounted) {
@@ -498,7 +488,7 @@ await productService.syncOfflineStockHistory(); // then run this
       });
     }
   }
-},
+}
 
             ),
           ],

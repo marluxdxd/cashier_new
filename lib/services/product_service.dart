@@ -813,4 +813,124 @@ Future<void> syncSingleProduct(int localId) async {
       print("❌ Failed to sync ${p['name']}: $e");
     }
   }
+  Future<int> insertTransactionItemOffline({
+  required int transactionId,
+  required Productclass product,
+  required int qty,
+  required bool isPromo,
+  required int otherQty,
+}) async {
+  final id = generateUniqueId(prefix: "TI").hashCode.abs();
+
+  return await localDb.insertTransactionItem(
+    id: id,
+    transactionId: transactionId,
+    productId: product.id,
+    productName: product.name,
+    qty: qty,
+    price: product.price,
+    isPromo: isPromo,
+    otherQty: otherQty,
+  );
+}
+
+Future<void> syncOfflineTransactionItems() async {
+  final online = await InternetConnectionChecker().hasConnection;
+  if (!online) return;
+
+  final db = await localDb.database;
+
+  // Kuhaon tanan unsynced transaction items (is_synced = 0)
+  final unsyncedItems = await db.query(
+    'transaction_items',
+    where: 'is_synced = ?',
+    whereArgs: [0],
+  );
+
+  for (var item in unsyncedItems) {
+    try {
+      // Siguraduhon ang casting sa tanan fields
+      final int localId = item['id'] is int
+          ? item['id'] as int
+          : int.tryParse(item['id'].toString()) ?? 0;
+
+      final int trxId = item['transaction_id'] is int
+          ? item['transaction_id'] as int
+          : int.tryParse(item['transaction_id'].toString()) ?? 0;
+
+      final int productId = item['product_id'] is int
+          ? item['product_id'] as int
+          : int.tryParse(item['product_id'].toString()) ?? 0;
+
+      final String productName = item['product_name']?.toString() ?? '';
+      final int qty = item['qty'] is int
+          ? item['qty'] as int
+          : int.tryParse(item['qty'].toString()) ?? 0;
+
+      final double price = item['price'] is int
+          ? (item['price'] as int).toDouble()
+          : item['price'] is double
+              ? item['price'] as double
+              : 0.0;
+
+      final bool isPromo = (item['is_promo'] ?? 0) == 1;
+      final int otherQty = item['other_qty'] is int
+          ? item['other_qty'] as int
+          : int.tryParse(item['other_qty']?.toString() ?? '0') ?? 0;
+
+      final String productClientUuid = item['product_client_uuid']?.toString() ??
+          "P_${DateTime.now().millisecondsSinceEpoch}";
+
+      // Insert into Supabase
+      final existing = await supabase
+          .from('transaction_items')
+          .select('id')
+          .eq('product_client_uuid', productClientUuid)
+          .maybeSingle();
+
+      if (existing != null) {
+        // UPDATE existing item
+        await supabase
+            .from('transaction_items')
+            .update({
+              'transaction_id': trxId,
+              'product_id': productId,
+              'product_name': productName,
+              'qty': qty,
+              'price': price,
+              'is_promo': isPromo,
+              'other_qty': otherQty,
+            })
+            .eq('id', existing['id']);
+      } else {
+        // INSERT new item
+        await supabase.from('transaction_items').insert({
+          'transaction_id': trxId,
+          'product_id': productId,
+          'product_name': productName,
+          'qty': qty,
+          'price': price,
+          'is_promo': isPromo,
+          'other_qty': otherQty,
+          'product_client_uuid': productClientUuid,
+        });
+      }
+
+      // Mark as synced locally
+      await db.update(
+        'transaction_items',
+        {'is_synced': 1},
+        where: 'id = ?',
+        whereArgs: [localId],
+      );
+
+      print("✅ Synced transaction item id $localId successfully!");
+    } catch (e) {
+      print("❌ Failed to sync transaction item id ${item['id']}: $e");
+    }
+  }
+
+  print("🎉 All offline transaction items synced!");
+}
+
 }

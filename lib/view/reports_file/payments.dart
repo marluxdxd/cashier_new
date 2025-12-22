@@ -23,55 +23,56 @@ class _PaymentsTabState extends State<PaymentsTab> {
   }
 
   Future<void> loadPayments() async {
+  try {
+    setState(() => isLoading = true);
+
+    List<Map<String, dynamic>> allPayments = [];
+
+    // -------------------
+    // Fetch online + offline payments from TransactionService
+    // -------------------
     try {
-      setState(() => isLoading = true);
-
-      List<Map<String, dynamic>> allPayments = [];
-
-      // -------------------
-      // Fetch online payments from Supabase
-      // -------------------
-      try {
-        final onlinePayments = await transactionService.fetchTransactions();
-        allPayments.addAll(onlinePayments.map((t) {
-          return {
-            'id': t['id'],
-            'total': t['total'],
-            'cash': t['cash'],
-            'change': t['change'],
-            'created_at': t['created_at'],
-            'is_synced': 1, // online data
-          };
-        }));
-      } catch (_) {
-        debugPrint("Supabase offline, loading local only");
-      }
-
-      // -------------------
-      // Fetch offline payments from local SQLite
-      // -------------------
-      final offlinePayments = await localDb.getAllTransactions();
-      allPayments.addAll(offlinePayments.map((t) {
+      final onlinePayments = await transactionService.fetchAllTransactions();
+      allPayments.addAll(onlinePayments.map((t) {
         return {
           'id': t['id'],
           'total': t['total'],
           'cash': t['cash'],
           'change': t['change'],
           'created_at': t['created_at'],
-          'is_synced': t['is_synced'] ?? 0,
+          'is_synced': t['is_synced'] ?? 1, // mark as online if synced
         };
       }));
-
-      // Sort by date descending
-      allPayments.sort((a, b) => b['created_at'].compareTo(a['created_at']));
-
-      setState(() => payments = allPayments);
-    } catch (e) {
-      debugPrint("Error loading payments: $e");
-    } finally {
-      setState(() => isLoading = false);
+    } catch (_) {
+      debugPrint("Supabase offline, loading local only");
     }
+
+    // -------------------
+    // Fetch offline-only payments from local SQLite
+    // -------------------
+    final offlinePayments = await localDb.getAllTransactions();
+    allPayments.addAll(offlinePayments.where((t) => t['is_synced'] == 0).map((t) {
+      return {
+        'id': t['id'],
+        'total': t['total'],
+        'cash': t['cash'],
+        'change': t['change'],
+        'created_at': t['created_at'],
+        'is_synced': 0, // offline data
+      };
+    }));
+
+    // Sort by date descending
+    allPayments.sort((a, b) => b['created_at'].compareTo(a['created_at']));
+
+    setState(() => payments = allPayments);
+  } catch (e) {
+    debugPrint("Error loading payments: $e");
+  } finally {
+    setState(() => isLoading = false);
   }
+}
+
 
   @override
   Widget build(BuildContext context) {

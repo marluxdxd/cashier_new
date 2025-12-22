@@ -22,25 +22,24 @@ class _HistoryScreenOnlineState extends State<HistoryScreenOnline> {
     loadTransactions();
   }
 
-  Future<void> loadTransactions() async {
-    try {
-      // Fetch all transactions
-      final trx = await transactionService.fetchTransactions();
-      setState(() => transactions = trx);
+ Future<void> loadTransactions() async {
+  setState(() => isLoading = true);
+  try {
+    final trx = await transactionService.fetchAllTransactions();
+    setState(() => transactions = trx);
 
-      // Fetch items for each transaction
-      for (var t in trx) {
-        final items = await transactionService.fetchTransactionItems(t['id']);
-        setState(() {
-          transactionItems[t['id']] = items;
-        });
-      }
-    } catch (e) {
-      print("Error loading transactions: $e");
-    } finally {
-      setState(() => isLoading = false);
+    for (var t in trx) {
+      final items = await transactionService.fetchAllTransactionItems(t['id']);
+      setState(() {
+        transactionItems[t['id']] = items;
+      });
     }
+  } catch (e) {
+    print("Error loading transactions: $e");
+  } finally {
+    setState(() => isLoading = false);
   }
+}
 
   @override
   Widget build(BuildContext context) {
