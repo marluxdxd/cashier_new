@@ -144,13 +144,15 @@ FROM old_product_stock_history
 
     await db.execute('''
   CREATE TABLE IF NOT EXISTS products_offline (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL,
-    price REAL NOT NULL,
-    stock INTEGER NOT NULL,
-    is_promo INTEGER DEFAULT 0,
-    other_qty INTEGER DEFAULT 0,
-    is_synced INTEGER DEFAULT 0
+     id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        price REAL NOT NULL,
+        stock INTEGER NOT NULL,
+        is_promo INTEGER DEFAULT 0,
+        other_qty INTEGER,
+        is_synced INTEGER DEFAULT 0,
+        client_uuid TEXT UNIQUE,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
   )
 ''');
     await db.execute('''
@@ -196,6 +198,7 @@ FROM old_product_stock_history
       CREATE TABLE product_stock_history (
   id INTEGER PRIMARY KEY,
   product_id INTEGER NOT NULL,
+  product_client_uuid TEXT, -- 🔑 IMPORTANT
   old_stock INTEGER,
   qty_changed INTEGER,
   new_stock INTEGER,
@@ -816,4 +819,47 @@ Future<List<Map<String, dynamic>>> getTransactionItemsByTransactionId(int transa
   );
   return result;
 }
+Future<void> upsertProductByClientUuid({
+  required String clientUuid,
+  required String name,
+  required double price,
+  required int stock,
+  required bool isPromo,
+  required int otherQty,
+}) async {
+  final db = await database;
+
+  final existing = await db.query(
+    'products',
+    where: 'client_uuid = ?',
+    whereArgs: [clientUuid],
+  );
+
+  if (existing.isEmpty) {
+    await db.insert('products', {
+      'name': name,
+      'price': price,
+      'stock': stock,
+      'is_promo': isPromo ? 1 : 0,
+      'other_qty': otherQty,
+      'client_uuid': clientUuid,
+      'is_synced': 1,
+    });
+  } else {
+    await db.update(
+      'products',
+      {
+        'name': name,
+        'price': price,
+        'stock': stock,
+        'is_promo': isPromo ? 1 : 0,
+        'other_qty': otherQty,
+      },
+      where: 'client_uuid = ?',
+      whereArgs: [clientUuid],
+    );
+  }
+}
+
+
 }

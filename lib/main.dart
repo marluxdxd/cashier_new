@@ -35,11 +35,6 @@ final  stockHistoryService = StockHistorySyncService(); // create instance
   ConnectivityService(productService: productService, transactionService: TransactionService(), transactionItemService: transactionItemService, stockHistorySyncService: stockHistoryService); // auto-listen
   
 
-  Connectivity().onConnectivityChanged.listen((status) {
-    if (status != ConnectivityResult.none) {
-      SyncService().sync();
-    }
-  });
 
 
   runApp(const MyApp());
