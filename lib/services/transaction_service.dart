@@ -140,6 +140,7 @@ class TransactionService {
         'is_promo': item.isPromo ? 1 : 0,
         'other_qty': item.otherQty,
         'is_synced': 0,
+        'product_client_uuid': generateUniqueId(prefix: 'P'),
       });
     }
 
@@ -230,7 +231,7 @@ class TransactionService {
 
       print("✅ Transaction ${trx['id']} synced → Supabase ID $supaTransactionId");
     } catch (e) {
-      print("❌ Failed to sync transaction ${trx['id']}: $e");
+      print("❌ Failed to sync transaction123 ${trx['id']}: $e");
     }
   }
 }

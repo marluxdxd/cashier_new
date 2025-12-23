@@ -15,7 +15,7 @@ class ProductOffline {
   final double? cash;
   final double? change;
   final DateTime? timestamp;
-
+final String productClientUuid; // ✅ REQUIRED
   final List<ProductOffline> items;
 
   ProductOffline({
@@ -31,6 +31,7 @@ class ProductOffline {
     this.items = const [],
     this.isPromo = false,
     this.otherQty = 0,
+     required this.productClientUuid, // ✅ Assign unique ID
   });
 
   Map<String, dynamic> toMap() {
@@ -49,19 +50,25 @@ class ProductOffline {
     };
   }
 
-  factory ProductOffline.fromMap(Map<String, dynamic> map) {
-    return ProductOffline(
-      id: map['id'],
-      productId: map['product_id'],
-      productName: map['product_name'],
-      price: (map['price'] as num?)?.toDouble(),
-      qty: map['qty'],
-      isPromo: map['is_promo'] == 1,
-      otherQty: map['other_qty'] ?? 0,
-      total: (map['total'] as num?)?.toDouble(),
-      cash: (map['cash'] as num?)?.toDouble(),
-      change: (map['change'] as num?)?.toDouble(),
-      timestamp: map['timestamp'] != null ? DateTime.parse(map['timestamp']) : null,
-    );
-  }
+factory ProductOffline.fromMap(Map<String, dynamic> map) {
+  return ProductOffline(
+    id: map['id'],
+    productId: map['product_id'],
+    productName: map['product_name'],
+    price: (map['price'] as num?)?.toDouble(),
+    qty: map['qty'],
+    isPromo: map['is_promo'] == 1,
+    otherQty: map['other_qty'] ?? 0,
+    total: (map['total'] as num?)?.toDouble(),
+    cash: (map['cash'] as num?)?.toDouble(),
+    change: (map['change'] as num?)?.toDouble(),
+    timestamp: map['timestamp'] != null ? DateTime.parse(map['timestamp']) : null,
+    productClientUuid: map['product_client_uuid']?.toString() ?? 
+        "P_${DateTime.now().millisecondsSinceEpoch}", // ✅ fallback
+    items: map['items'] != null
+        ? List<ProductOffline>.from(
+            (map['items'] as List).map((x) => ProductOffline.fromMap(x)))
+        : [],
+  );
+}
 }

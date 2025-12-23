@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:cashier/database/local_db.dart';
 import 'package:cashier/database/supabase.dart';
 import 'package:cashier/class/product_offline.dart';
+import 'package:cashier/services/product_service.dart';
 
 class TransactionItemService {
   final localDb = LocalDatabase();
@@ -46,6 +47,7 @@ class TransactionItemService {
         'is_promo': item.isPromo ? 1 : 0,
         'other_qty': item.otherQty,
         'is_synced': 0,
+        'product_client_uuid': generateUniqueId(prefix: 'P'),
       });
     }
 

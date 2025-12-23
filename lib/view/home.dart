@@ -59,6 +59,7 @@ class _HomeState extends State<Home> {
         await productService.syncOnlineProducts();
         await transactionService.syncOfflineTransactions(); // 👈 IMPORTANT
         await syncProducts();
+        
       }
     });
     _connectivityListener = Connectivity().onConnectivityChanged.listen((

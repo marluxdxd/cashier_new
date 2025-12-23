@@ -223,7 +223,8 @@ FROM old_product_stock_history
   supabase_id INTEGER,
   product_client_uuid TEXT UNIQUE,
   FOREIGN KEY(transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
-  FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
+  FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE,
+  UNIQUE(transaction_id, product_id) -- ✅ SQLite unique constraint
 )
     ''');
 
@@ -716,7 +717,15 @@ FROM old_product_stock_history
     return await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
   }
 
-  // ------------------- TRANSACTION ITEMS -------------------
+Future<void> resetTransactionItemsSequence() async {
+  final db = await database;
+  await db.rawUpdate('''
+    UPDATE sqlite_sequence
+    SET seq = (SELECT MAX(id) FROM transaction_items)
+    WHERE name = 'transaction_items';
+  ''');
+}
+
 
   // ------------------- TRANSACTION ITEMS CRUD ------------------- //
   // 🔹 Insert a new transaction item (replace if ID exists)
@@ -745,6 +754,7 @@ Future<int> insertTransactionItem({
     'is_synced': isSynced,
     'product_client_uuid': productClientUuid,
   }, conflictAlgorithm: ConflictAlgorithm.replace);
+  
 }
 
 
