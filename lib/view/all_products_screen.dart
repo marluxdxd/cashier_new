@@ -63,6 +63,7 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
                 price: e['price'],
                 stock: e['stock'],
                 isPromo: e['is_promo'] == 1,
+                productClientUuid: e['client_uuid'] as String,
                 otherQty: e['other_qty'] ?? 0,
               ))
           .toList();

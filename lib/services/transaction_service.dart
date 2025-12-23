@@ -140,6 +140,9 @@ class TransactionService {
         'is_promo': item.isPromo ? 1 : 0,
         'other_qty': item.otherQty,
         'is_synced': 0,
+        'product_client_uuid': item.productClientUuid, // ✅ ADD THIS
+        
+        
       });
     }
 
@@ -230,7 +233,7 @@ class TransactionService {
 
       print("✅ Transaction ${trx['id']} synced → Supabase ID $supaTransactionId");
     } catch (e) {
-      print("❌ Failed to sync transaction ${trx['id']}: $e");
+      print("❌ Failed to sync transaction123 ${trx['id']}: $e");
     }
   }
 }
@@ -273,6 +276,9 @@ class TransactionService {
     required bool isPromo,
     required int otherQty,
   }) async {
+      print(
+    "🌐 ONLINE INSERT ITEM => ${product.name} uuid=${product.productClientUuid}",
+  );
     await supabase.from('transaction_items').insert({
       'transaction_id': transactionId,
       'product_id': product.id,
@@ -281,6 +287,7 @@ class TransactionService {
       'price': product.price,
       'is_promo': isPromo,
       'other_qty': otherQty,
+      'product_client_uuid': product.productClientUuid,
     });
   }
 

@@ -405,6 +405,7 @@ class _HomeState extends State<Home> {
         price: product.price,
         isPromo: product.isPromo,
         otherQty: product.otherQty,
+         productClientUuid: product.productClientUuid, // ✅ ADD
       );
 
       // Update local stock
@@ -420,6 +421,9 @@ class _HomeState extends State<Home> {
         isPromo: product.isPromo,
         otherQty: product.otherQty,
       );
+      print(
+  "🧾 TRANSACTION ITEM | ${product.name} | qty=$qtySold | uuid=${product.productClientUuid}"
+);
 
       // Insert stock history
       await localDb.insertStockHistory(
@@ -431,6 +435,7 @@ class _HomeState extends State<Home> {
         type: 'SALE',
         createdAt: timestamp,
         synced: online ? 1 : 0,
+        productClientUuid: product.productClientUuid,
       );
 
       await localDb.insertStockUpdateQueue1(
@@ -458,6 +463,7 @@ class _HomeState extends State<Home> {
       await productService.syncOnlineProducts();
       await productService.syncOfflineStockHistory();
       await productService.syncOfflineProducts();
+      
     }
 
     // ================= 5️⃣ UPDATE UI =================

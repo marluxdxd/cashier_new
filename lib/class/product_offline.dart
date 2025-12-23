@@ -15,6 +15,7 @@ class ProductOffline {
   final double? cash;
   final double? change;
   final DateTime? timestamp;
+  final String productClientUuid; // ✅ ADD THIS
 
   final List<ProductOffline> items;
 
@@ -31,6 +32,7 @@ class ProductOffline {
     this.items = const [],
     this.isPromo = false,
     this.otherQty = 0,
+     required this.productClientUuid, // pass from ProductService
   });
 
   Map<String, dynamic> toMap() {
@@ -46,6 +48,7 @@ class ProductOffline {
       'cash': cash,
       'change': change,
       'timestamp': timestamp?.toIso8601String(),
+      'product_client_uuid': productClientUuid, // ✅ add here
     };
   }
 
@@ -62,6 +65,7 @@ class ProductOffline {
       cash: (map['cash'] as num?)?.toDouble(),
       change: (map['change'] as num?)?.toDouble(),
       timestamp: map['timestamp'] != null ? DateTime.parse(map['timestamp']) : null,
+      productClientUuid: map['product_client_uuid'] ?? '', // ✅ ADD THIS
     );
   }
 }

@@ -118,8 +118,8 @@ class LocalDatabase {
           // Copy old data
           await db.execute('''
             INSERT INTO product_stock_history (id, product_id, old_stock, qty_changed, new_stock, type, created_at, is_synced)
-SELECT id, product_id, old_stock, COALESCE(qty_changed, 0), new_stock, type, created_at, is_synced
-FROM old_product_stock_history
+            SELECT id, product_id, old_stock, COALESCE(qty_changed, 0), new_stock, type, created_at, is_synced
+          FROM old_product_stock_history
           ''');
 
           // Drop old table
@@ -210,7 +210,7 @@ FROM old_product_stock_history
 
     // Transaction items
     await db.execute('''
-    CREATE TABLE transaction_items(
+CREATE TABLE transaction_items(
   id INTEGER PRIMARY KEY,
   transaction_id INTEGER NOT NULL,
   product_id INTEGER NOT NULL,
@@ -221,11 +221,13 @@ FROM old_product_stock_history
   other_qty INTEGER,
   is_synced INTEGER DEFAULT 0,
   supabase_id INTEGER,
-  product_client_uuid TEXT UNIQUE,
+  product_client_uuid text NOT NULL UNIQUE,
+
   FOREIGN KEY(transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
-  FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
+  FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE,
+  UNIQUE(transaction_id, product_client_uuid)
 )
-    ''');
+''');
 
     // Stock update queue
     await db.execute('''
@@ -720,33 +722,32 @@ FROM old_product_stock_history
 
   // ------------------- TRANSACTION ITEMS CRUD ------------------- //
   // 🔹 Insert a new transaction item (replace if ID exists)
-Future<int> insertTransactionItem({
-  required int id,
-  required int transactionId,
-  required int productId,
-  required String productName,
-  required int qty,
-  required double price,
-  bool isPromo = false,
-  int otherQty = 0,
-  int isSynced = 0, // 0 = not synced, 1 = synced
-  String? productClientUuid,
-}) async {
-  final db = await database;
-  return await db.insert('transaction_items', {
-    'id': id,
-    'transaction_id': transactionId,
-    'product_id': productId,
-    'product_name': productName,
-    'qty': qty,
-    'price': price,
-    'is_promo': isPromo ? 1 : 0,
-    'other_qty': otherQty,
-    'is_synced': isSynced,
-    'product_client_uuid': productClientUuid,
-  }, conflictAlgorithm: ConflictAlgorithm.replace);
-}
-
+  Future<int> insertTransactionItem({
+    required int id,
+    required int transactionId,
+    required int productId,
+    required String productName,
+    required int qty,
+    required double price,
+    bool isPromo = false,
+    int otherQty = 0,
+    int isSynced = 0, // 0 = not synced, 1 = synced
+    String? productClientUuid,
+  }) async {
+    final db = await database;
+    return await db.insert('transaction_items', {
+      'id': id,
+      'transaction_id': transactionId,
+      'product_id': productId,
+      'product_name': productName,
+      'qty': qty,
+      'price': price,
+      'is_promo': isPromo ? 1 : 0,
+      'other_qty': otherQty,
+      'is_synced': isSynced,
+      'product_client_uuid': productClientUuid,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
 
   // 🔹 Fetch all transactions (main table)
   Future<List<Map<String, dynamic>>> getAllTransactions() async {
@@ -786,6 +787,7 @@ Future<int> insertTransactionItem({
     required int newStock,
     required String type, // SALE, RESTOCK, ADJUSTMENT
     required String createdAt,
+    required String productClientUuid,
     required int synced, // 0 = offline, 1 = online
   }) async {
     final db = await database;
@@ -797,8 +799,12 @@ Future<int> insertTransactionItem({
       'new_stock': newStock,
       'type': type,
       'created_at': createdAt,
+      'product_client_uuid': productClientUuid,
       'is_synced': synced,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
+    print(
+      '📦 STOCK HISTORY INSERTED | product=$productId | qty=$qtyChanged | type=$type',
+    );
   }
 
   Future<bool> productExists(int id) async {
@@ -808,58 +814,58 @@ Future<int> insertTransactionItem({
   }
   // Fetch all transactions
 
+  // Fetch transaction items for a given transaction ID
+  Future<List<Map<String, dynamic>>> getTransactionItemsByTransactionId(
+    int transactionId,
+  ) async {
+    final db = await database;
+    final result = await db.query(
+      'transaction_items',
+      where: 'transaction_id = ?',
+      whereArgs: [transactionId],
+    );
+    return result;
+  }
 
-// Fetch transaction items for a given transaction ID
-Future<List<Map<String, dynamic>>> getTransactionItemsByTransactionId(int transactionId) async {
-  final db = await database;
-  final result = await db.query(
-    'transaction_items',
-    where: 'transaction_id = ?',
-    whereArgs: [transactionId],
-  );
-  return result;
-}
-Future<void> upsertProductByClientUuid({
-  required String clientUuid,
-  required String name,
-  required double price,
-  required int stock,
-  required bool isPromo,
-  required int otherQty,
-}) async {
-  final db = await database;
+  Future<void> upsertProductByClientUuid({
+    required String clientUuid,
+    required String name,
+    required double price,
+    required int stock,
+    required bool isPromo,
+    required int otherQty,
+  }) async {
+    final db = await database;
 
-  final existing = await db.query(
-    'products',
-    where: 'client_uuid = ?',
-    whereArgs: [clientUuid],
-  );
-
-  if (existing.isEmpty) {
-    await db.insert('products', {
-      'name': name,
-      'price': price,
-      'stock': stock,
-      'is_promo': isPromo ? 1 : 0,
-      'other_qty': otherQty,
-      'client_uuid': clientUuid,
-      'is_synced': 1,
-    });
-  } else {
-    await db.update(
+    final existing = await db.query(
       'products',
-      {
+      where: 'client_uuid = ?',
+      whereArgs: [clientUuid],
+    );
+
+    if (existing.isEmpty) {
+      await db.insert('products', {
         'name': name,
         'price': price,
         'stock': stock,
         'is_promo': isPromo ? 1 : 0,
         'other_qty': otherQty,
-      },
-      where: 'client_uuid = ?',
-      whereArgs: [clientUuid],
-    );
+        'client_uuid': clientUuid,
+        'is_synced': 1,
+      });
+    } else {
+      await db.update(
+        'products',
+        {
+          'name': name,
+          'price': price,
+          'stock': stock,
+          'is_promo': isPromo ? 1 : 0,
+          'other_qty': otherQty,
+        },
+        where: 'client_uuid = ?',
+        whereArgs: [clientUuid],
+      );
+    }
   }
-}
-
-
 }

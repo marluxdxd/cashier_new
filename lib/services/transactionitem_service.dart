@@ -46,49 +46,12 @@ class TransactionItemService {
         'is_promo': item.isPromo ? 1 : 0,
         'other_qty': item.otherQty,
         'is_synced': 0,
+        'product_client_uuid': item.productClientUuid
       });
     }
 
     return transactionId;
   }
-
-  // ------------------- SYNC OFFLINE TRANSACTIONS -------------------
-//   Future<void> syncOfflineTransactionItem() async {
-//   final db = await localDb.database;
-
-//   // Get unsynced items
-//   final unsyncedItems = await db.query(
-//     'transaction_items',
-//     where: 'supabase_id IS NULL',
-//   );
-
-//   for (var item in unsyncedItems) {
-//     try {
-//       final result = await supabase.from('transaction_items').insert({
-//         'transaction_id': item['transaction_id'],
-//         'product_id': item['product_id'],
-//         'product_name': item['product_name'],
-//         'qty': item['qty'],
-//         'price': item['price'],
-//         'is_promo': item['is_promo'] == 1,
-//         'other_qty': item['other_qty'],
-//       }).select(); // returns inserted row
-
-//       final newSupabaseId = result[0]['id'] as int;
-
-//       // Update local DB with Supabase id
-//       await db.update(
-//         'transaction_items',
-//         {'supabase_id': newSupabaseId, 'is_synced': 1},
-//         where: 'id = ?',
-//         whereArgs: [item['id']],
-//       );
-//     } catch (e) {
-//       print("Failed to sync item ${item['product_name']}: $e");
-//     }
-//   }
-// }
-
 
   // ------------------- GET TRANSACTIONS OFFLINE -------------------
   Future<List<Map<String, dynamic>>> getTransactionsOffline() async {
