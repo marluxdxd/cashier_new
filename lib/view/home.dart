@@ -347,7 +347,7 @@ class _HomeState extends State<Home> {
                 border: OutlineInputBorder(),
               ),
 
-             onSubmitted: (_) async {
+              onSubmitted: (_) async {
   if (isSyncingOnline) return;
 
   double cash = double.tryParse(customerCashController.text) ?? 0;
@@ -357,18 +357,39 @@ class _HomeState extends State<Home> {
     return;
   }
 
-  setState(() {
-    isSyncingOnline = true;
-  });
+  setState(() => isSyncingOnline = true);
 
   final bool online = await InternetConnectionChecker().hasConnection;
   final localDb = LocalDatabase();
   double change = transactionService.calculateChange(totalBill, cash);
   String timestamp = getPhilippineTimestampFormatted();
 
+  // ================= 0️⃣ COMBINE SAME PRODUCTS =================
+  final Map<int, POSRow> combinedItems = {};
+
+  for (final row in rows) {
+    if (row.product == null) continue;
+
+    final product = row.product!;
+    final qty = row.isPromo ? row.otherQty : row.qty;
+
+    if (combinedItems.containsKey(product.id)) {
+      combinedItems[product.id]!.qty += qty;
+    } else {
+      combinedItems[product.id] = POSRow(
+        product: product,
+        qty: qty,
+        isPromo: product.isPromo,
+        otherQty: product.otherQty,
+      );
+    }
+  }
+
   try {
-    // ================= 1️⃣ INSERT TRANSACTION LOCALLY =================
-    final int localTransactionId = generateUniqueId(prefix: "T").hashCode.abs();
+    // ================= 1️⃣ INSERT TRANSACTION =================
+    final int localTransactionId =
+        generateUniqueId(prefix: "T").hashCode.abs();
+
     await localDb.insertTransaction(
       id: localTransactionId,
       total: totalBill,
@@ -378,7 +399,6 @@ class _HomeState extends State<Home> {
       isSynced: online ? 1 : 0,
     );
 
-    // ================= 2️⃣ INSERT ONLINE TRANSACTION IF CONNECTED =================
     int onlineTransactionId = localTransactionId;
     if (online) {
       onlineTransactionId = await transactionService.saveTransaction(
@@ -388,31 +408,30 @@ class _HomeState extends State<Home> {
       );
     }
 
-    // ================= 3️⃣ PROCESS EACH ITEM =================
-    for (var row in rows) {
-      if (row.product == null) continue;
-
+    // ================= 2️⃣ SAVE COMBINED ITEMS =================
+    for (final row in combinedItems.values) {
       final product = row.product!;
-      final qtySold = row.isPromo ? row.otherQty : row.qty;
+      final qtySold = row.qty;
 
-      // Insert transaction item locally
+      // 🔹 Transaction item
       await localDb.insertTransactionItem(
         id: generateUniqueId(prefix: "TI").hashCode.abs(),
-        transactionId: localTransactionId, // use local transaction ID
+        transactionId: localTransactionId,
         productId: product.id,
         productName: product.name,
         qty: qtySold,
         price: product.price,
         isPromo: product.isPromo,
         otherQty: product.otherQty,
-         productClientUuid: product.productClientUuid, // ✅ ADD
+        productClientUuid: product.productClientUuid, // ❗ guaranteed
       );
 
-      // Update local stock
+      // 🔹 Stock update
       int? oldStock = await localDb.getProductStock(product.id);
       if (oldStock == null) continue;
 
       int newStock = oldStock - qtySold;
+
       await localDb.updateProductStock(product.id, newStock);
       await localDb.updateProduct(
         id: product.id,
@@ -421,11 +440,7 @@ class _HomeState extends State<Home> {
         isPromo: product.isPromo,
         otherQty: product.otherQty,
       );
-      print(
-  "🧾 TRANSACTION ITEM | ${product.name} | qty=$qtySold | uuid=${product.productClientUuid}"
-);
 
-      // Insert stock history
       await localDb.insertStockHistory(
         id: generateUniqueId(prefix: "H").hashCode.abs(),
         productId: product.id,
@@ -444,12 +459,12 @@ class _HomeState extends State<Home> {
         type: 'SALE',
       );
 
-      // Sync online if connected
+      // 🔹 Online sync
       if (online) {
         await productService.syncSingleProductOnline(product.id);
 
         await transactionService.saveTransactionItem(
-          transactionId: onlineTransactionId, // use online transaction ID
+          transactionId: onlineTransactionId,
           product: product,
           qty: qtySold,
           isPromo: product.isPromo,
@@ -458,15 +473,14 @@ class _HomeState extends State<Home> {
       }
     }
 
-    // ================= 4️⃣ FINAL ONLINE SYNC =================
+    // ================= 3️⃣ FINAL SYNC =================
     if (online) {
       await productService.syncOnlineProducts();
       await productService.syncOfflineStockHistory();
       await productService.syncOfflineProducts();
-      
     }
 
-    // ================= 5️⃣ UPDATE UI =================
+    // ================= 4️⃣ UI RESET =================
     if (mounted) {
       showDialog(
         context: context,
@@ -474,25 +488,17 @@ class _HomeState extends State<Home> {
       );
 
       customerCashController.clear();
-      setState(() {
-        rows = [POSRow()]; // reset POS rows
-      });
+      setState(() => rows = [POSRow()]);
     }
 
-    print("✅ Transaction + Sync SUCCESS");
+    print("✅ TRANSACTION SUCCESS");
   } catch (e) {
     print("❌ Error saving transaction: $e");
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to save transaction.")),
-      );
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Failed to save transaction")),
+    );
   } finally {
-    if (mounted) {
-      setState(() {
-        isSyncingOnline = false;
-      });
-    }
+    if (mounted) setState(() => isSyncingOnline = false);
   }
 }
 
