@@ -221,11 +221,13 @@ CREATE TABLE transaction_items(
   other_qty INTEGER,
   is_synced INTEGER DEFAULT 0,
   supabase_id INTEGER,
-  product_client_uuid text NOT NULL UNIQUE,
+
+  product_client_uuid TEXT NOT NULL,
 
   FOREIGN KEY(transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
   FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE,
-  UNIQUE(transaction_id, product_client_uuid)
+
+  UNIQUE(transaction_id, product_id)
 )
 ''');
 

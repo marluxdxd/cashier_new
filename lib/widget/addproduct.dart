@@ -1,6 +1,7 @@
 import 'package:cashier/services/product_service.dart';
 import 'package:flutter/material.dart';
 
+
 class AddProductPage extends StatefulWidget {
   const AddProductPage({super.key});
 
@@ -124,14 +125,27 @@ class _AddProductPageState extends State<AddProductPage> {
               decoration: const InputDecoration(labelText: "Stock"),
             ),
             const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: isLoading ? null : saveProduct,
-              child: isLoading
-                  ? const CircularProgressIndicator(
-                      color: Colors.white,
-                    )
-                  : const Text("Save Product"),
-            ),
+     ElevatedButton(
+  onPressed: isLoading
+      ? null
+      : () async {
+          setState(() => isLoading = true);
+
+          try {
+            saveProduct(); // your existing save logic
+            await productService.syncOnlineProducts(); // ✅ call correctly
+          } catch (e) {
+            print("❌ Error syncing products: $e");
+          } finally {
+            setState(() => isLoading = false);
+          }
+        },
+  child: isLoading
+      ? const CircularProgressIndicator(color: Colors.white)
+      : const Text("Save Product"),
+)
+
+
           ],
         ),
       ),
