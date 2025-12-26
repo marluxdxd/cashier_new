@@ -14,9 +14,7 @@ class _AddProductPageState extends State<AddProductPage> {
   final priceController = TextEditingController();
   final stockController = TextEditingController();
   final promoQtyController = TextEditingController();
-
   final productService = ProductService();
-
   bool isLoading = false;
   bool isPromo = false; // default wala promo
   int otherQty = 0;

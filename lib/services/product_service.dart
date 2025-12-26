@@ -397,96 +397,94 @@ class ProductService {
   // -----------------------------
   // CORE SYNC FUNCTION
   Future<void> syncOnlineProducts() async {
-    final online = await isOnline2();
-    if (!online) {
-      print("❌ Offline: cannot sync");
-      return;
-    }
-
-    final db = await localDb.database;
-
-    // ✅ Get latest unsynced product
-    final unsynced = await db.query(
-      'products',
-      where: 'is_synced = ?',
-      whereArgs: [0],
-      orderBy: 'id DESC', // latest first
-      limit: 1, // only ONE product
-    );
-
-    if (unsynced.isEmpty) {
-      print("✅ No products to sync");
-      return;
-    }
-
-    for (final p in unsynced) {
-      final clientUuid = p['client_uuid']?.toString();
-      if (clientUuid == null || clientUuid.isEmpty) {
-        print("⚠️ Skipping product without client_uuid: ${p['name']}");
-        continue;
-      }
-
-      // 🔹 Safe type casting
-      final price = p['price'] is int
-          ? (p['price'] as int).toDouble()
-          : p['price'] is double
-          ? p['price'] as double
-          : 0.0;
-
-      final stock = p['stock'] is int ? p['stock'] as int : 0;
-      final isPromo = (p['is_promo'] ?? 0) == 1;
-      final otherQty = p['other_qty'] is int ? p['other_qty'] as int : 0;
-
-      try {
-        // 1️⃣ Check if product with same client_uuid exists in Supabase
-        final existing = await supabase
-            .from('products')
-            .select('id')
-            .eq('client_uuid', clientUuid)
-            .maybeSingle();
-
-        if (existing != null) {
-          // 🔁 UPDATE existing product
-          await supabase
-              .from('products')
-              .update({
-                'name': p['name'],
-                'price': price,
-                'stock': stock,
-                'is_promo': isPromo,
-                'other_qty': otherQty,
-              })
-              .eq('id', existing['id']);
-          print("🔁 Updated product '${p['name']}' on Supabase");
-        } else {
-          // ➕ INSERT new product
-          await supabase.from('products').insert({
-            'name': p['name'],
-            'price': price,
-            'stock': stock,
-            'is_promo': isPromo,
-            'other_qty': otherQty,
-            'client_uuid': clientUuid,
-          });
-          print("➕ Inserted product '${p['name']}' to Supabase");
-        }
-
-        // 2️⃣ Mark product as synced locally
-        await db.update(
-          'products',
-          {'is_synced': 1},
-          where: 'id = ?',
-          whereArgs: [p['id']],
-        );
-
-        print("✅ Synced product '${p['name']}' successfully!");
-      } catch (e) {
-        print("❌ Failed to sync ${p['name']}: $e");
-      }
-    }
-
-    print("✅ All offline products synced to Supabase");
+  final online = await isOnline2();
+  if (!online) {
+    print("❌ Offline: cannot sync");
+    return;
   }
+
+  final db = await localDb.database;
+
+  // Use rawQuery for ORDER BY + LIMIT
+  final unsynced = await db.rawQuery(
+    'SELECT * FROM products WHERE is_synced = 0 ORDER BY id DESC LIMIT 1',
+  );
+
+  if (unsynced.isEmpty) {
+    print("✅ No products to sync");
+    return;
+  }
+
+  for (final p in unsynced) {
+    final clientUuid = p['client_uuid']?.toString();
+    if (clientUuid == null || clientUuid.isEmpty) {
+      print("⚠️ Skipping product without client_uuid: ${p['name']}");
+      continue;
+    }
+
+    // Safe type casting
+    final price = p['price'] is int
+        ? (p['price'] as int).toDouble()
+        : p['price'] is double
+            ? p['price'] as double
+            : 0.0;
+
+    final stock = p['stock'] is int ? p['stock'] as int : 0;
+    final isPromo = (p['is_promo'] ?? 0) == 1;
+    final otherQty = p['other_qty'] is int ? p['other_qty'] as int : 0;
+
+    try {
+      // Check if product exists in Supabase
+      final existing = await supabase
+          .from('products')
+          .select('id')
+          .eq('client_uuid', clientUuid)
+          .maybeSingle();
+
+      if (existing != null) {
+        // Update existing product
+        await supabase
+            .from('products')
+            .update({
+              'name': p['name'],
+              'price': price,
+              'stock': stock,
+              'is_promo': isPromo,
+              'other_qty': otherQty,
+            })
+            .eq('id', existing['id']);
+        print("🔁 Updated product '${p['name']}' on Supabase");
+      } else {
+        // Insert new product
+        await supabase.from('products').insert({
+          'name': p['name'],
+          'price': price,
+          'stock': stock,
+          'is_promo': isPromo,
+          'other_qty': otherQty,
+          'client_uuid': clientUuid,
+        });
+        print("➕ Inserted product '${p['name']}' to Supabase");
+      }
+
+      // Mark product as synced locally
+      await db.update(
+        'products',
+        {'is_synced': 1},
+        where: 'id = ?',
+        whereArgs: [p['id']],
+      );
+
+      print("✅ Synced product '${p['name']}' successfully!");
+    } catch (e) {
+      print("❌ Failed to sync ${p['name']}: $e");
+    }
+  }
+
+  print("✅ All offline products synced to Supabase");
+}
+
+
 
   // ------------------- SYNC UNSYNCED PRODUCTS -------------------
   Future<void> syncOfflineProducts() async {
