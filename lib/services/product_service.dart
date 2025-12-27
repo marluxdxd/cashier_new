@@ -763,7 +763,7 @@ print("➡️ clientUuid: $clientUuid");
               'other_qty': item['other_qty'],
               'product_client_uuid':
                   item['product_client_uuid'] ?? generateUniqueId(prefix: "P"),
-            }, onConflict: 'product_client_uuid'); // pass as string, not list
+            }, onConflict: 'product_client_uuid, transaction_id, product_id'); // pass as string, not list
 
             // Mark item as synced locally
             await localDb.markItemSynced(item['id']);

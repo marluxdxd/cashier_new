@@ -70,12 +70,15 @@ class _AddProductPageState extends State<AddProductPage> {
         ),
       );
 
-      Navigator.pop(context);
+      nameController.clear();
+      priceController.clear();
+      stockController.clear();
+      promoQtyController.clear();
     } catch (e) {
       setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error saving product: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error saving product: $e")));
     }
   }
 
@@ -109,6 +112,9 @@ class _AddProductPageState extends State<AddProductPage> {
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: "Qty for Promo"),
               ),
+
+
+              
             TextField(
               controller: nameController,
               decoration: const InputDecoration(labelText: "Product Name"),
@@ -127,9 +133,7 @@ class _AddProductPageState extends State<AddProductPage> {
             ElevatedButton(
               onPressed: isLoading ? null : saveProduct,
               child: isLoading
-                  ? const CircularProgressIndicator(
-                      color: Colors.white,
-                    )
+                  ? const CircularProgressIndicator(color: Colors.white)
                   : const Text("Save Product"),
             ),
           ],
