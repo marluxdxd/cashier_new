@@ -89,41 +89,18 @@ class LocalDatabase {
 
     final db = await openDatabase(
       path,
-      version: 4,
+      version: 1,
       onCreate: (db, version) async {
         await _createTables(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         // Migration for product_stock_history column fixes
-        if (oldVersion < 4) {
-          // Rename old table
-          await db.execute(
-            'ALTER TABLE product_stock_history RENAME TO old_product_stock_history',
-          );
+        if (oldVersion < 1) {
+    
+        
 
-          // Create new table with correct column name
-          await db.execute('''
-            CREATE TABLE product_stock_history(
-              id INTEGER PRIMARY KEY,
-              product_id INTEGER,
-              old_stock INTEGER,
-              qty_changed INTEGER,
-              new_stock INTEGER,
-              type TEXT,
-              created_at TEXT,
-              is_synced INTEGER
-            )
-          ''');
-
-          // Copy old data
-          await db.execute('''
-            INSERT INTO product_stock_history (id, product_id, old_stock, qty_changed, new_stock, type, created_at, is_synced)
-            SELECT id, product_id, old_stock, COALESCE(qty_changed, 0), new_stock, type, created_at, is_synced
-          FROM old_product_stock_history
-          ''');
-
-          // Drop old table
-          await db.execute('DROP TABLE old_product_stock_history');
+    
+  
         }
       },
     );
@@ -194,19 +171,24 @@ class LocalDatabase {
     ''');
 
     // Product stock history
-    await db.execute('''
-      CREATE TABLE product_stock_history (
+  await db.execute('''
+CREATE TABLE product_stock_history (
   id INTEGER PRIMARY KEY,
-  product_id INTEGER NOT NULL,
-  product_client_uuid TEXT, -- 🔑 IMPORTANT
+    transaction_id INTEGER,        -- ✅ ADD THIS
+  product_id INTEGER,
+  product_name TEXT,       -- ✅ NEW
   old_stock INTEGER,
   qty_changed INTEGER,
   new_stock INTEGER,
-  type TEXT,
+  change_type TEXT,        -- ✅ NEW
+  trans_date TEXT,         -- ✅ NEW
+type TEXT,  
   created_at TEXT,
-  is_synced INTEGER DEFAULT 0
+  product_client_uuid TEXT,
+  is_synced INTEGER
 )
-    ''');
+''');
+
 
     // Transaction items
     await db.execute('''
@@ -779,33 +761,42 @@ CREATE TABLE transaction_items(
     );
   }
 
-  Future<void> insertStockHistory({
-    required int id,
-    required int productId,
-    required int oldStock,
-    required int qtyChanged,
-    required int newStock,
-    required String type, // SALE, RESTOCK, ADJUSTMENT
-    required String createdAt,
-    required String productClientUuid,
-    required int synced, // 0 = offline, 1 = online
-  }) async {
-    final db = await database;
-    await db.insert('product_stock_history', {
+Future<void> insertStockHistory({
+  required int id,
+  required int productId,
+  required String productName,       // ✅ NEW
+  required int oldStock,
+  required int qtyChanged,
+  required int newStock,
+  required String type, // SALE, RESTOCK, ADJUSTMENT
+  required String createdAt,
+  required String productClientUuid,
+  required int synced, // 0 = offline, 1 = online
+}) async {
+  final db = await database;
+
+  await db.insert(
+    'product_stock_history',
+    {
       'id': id,
       'product_id': productId,
+      'product_name': productName,    // ✅ INSERT NAME
       'old_stock': oldStock,
       'qty_changed': qtyChanged,
       'new_stock': newStock,
-      'type': type,
+      'change_type': type.toLowerCase(),
+      'trans_date': createdAt,
       'created_at': createdAt,
       'product_client_uuid': productClientUuid,
-      'is_synced': synced,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
-    print(
-      '📦 STOCK HISTORY INSERTED | product=$productId | qty=$qtyChanged | type=$type',
-    );
-  }
+      'is_synced': 0,
+    },
+    conflictAlgorithm: ConflictAlgorithm.replace,
+  );
+
+  print(
+    '📦 STOCK HISTORY INSERTED | product=$productId | name=$productName | qty=$qtyChanged | type=$type | transdate=$createdAt | productclientuuid=$productClientUuid | isynced=$synced',
+  );
+}
 
   Future<bool> productExists(int id) async {
     final db = await database;

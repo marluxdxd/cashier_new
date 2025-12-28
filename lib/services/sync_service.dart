@@ -9,6 +9,7 @@ final uuid = Uuid();
 class SyncService {
   final LocalDatabase localDb = LocalDatabase();
   final supabase = SupabaseConfig.supabase;
+  final supabase1 = Supabase.instance.client;
 
   Future<void> syncOfflineProducts() async {
     // copy code from ProductService.syncOfflineProducts()
@@ -35,10 +36,8 @@ class SyncService {
       }
     }
   }
-
-
-
- 
   // Optional: generate UUID for local offline IDs
   String generateOfflineId() => uuid.v4();
+
+  
 }

@@ -213,7 +213,8 @@ class TransactionService {
           'other_qty': item['other_qty'],
           'product_client_uuid': item['product_client_uuid'] ??
               generateUniqueId(prefix: 'P'),
-        }, onConflict: 'product_client_uuid');
+        }, onConflict: 'product_client_uuid, transaction_id, product_id'); // pass as string, not list
+
 
         await db.update(
           'transaction_items',

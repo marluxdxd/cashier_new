@@ -82,17 +82,19 @@ class StockHistorySyncService {
         }
 
         // 5️⃣ Insert stock history into Supabase
-        await supabase.from('product_stock_history').insert({
-          'product_id': supaProductId,
-          'old_stock': entry['old_stock'] ?? 0,
-          'new_stock': entry['new_stock'] ?? 0,
-          'qty_changed': entry['qty_changed'] ?? 0,
-          'change_type': entry['type'] ?? 'UNKNOWN',
-          'trans_date': entry['trans_date'] ?? DateTime.now().toIso8601String(),
-          'created_at': entry['created_at'] ?? DateTime.now().toIso8601String(),
-          'product_client_uuid': clientUuid,
-        });
-        print("✅ Synced to Supabase: stock_history_id=${entry['id']}, product_id=$supaProductId, qty_changed=${entry['qty_changed']}");
+   await supabase.from('product_stock_history').insert({
+  'product_id': supaProductId,
+  'product_name': entry['product_name'] ?? product['name'] ?? 'UNKNOWN',
+  'old_stock': entry['old_stock'] ?? 0,
+  'new_stock': entry['new_stock'] ?? 0,
+  'qty_changed': entry['qty_changed'] ?? 0,
+  'change_type': entry['change_type']?.toString() ?? 'adjust',
+  'trans_date': entry['trans_date']?.toString() ?? DateTime.now().toIso8601String(),
+  'created_at': entry['created_at']?.toString() ?? DateTime.now().toIso8601String(),
+  'product_client_uuid': clientUuid,
+});
+print("✅ Synced to Supabase: stock_history_id=${entry['id']}, product_id=$supaProductId, qty_changed=${entry['qty_changed']}");
+
         
 
 
