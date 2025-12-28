@@ -29,10 +29,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
     });
 
     final db = await LocalDatabase().database;
-    final history = await db.query(
-      'product_stock_history',
-      orderBy: 'trans_date DESC',
-    );
+    final history = await db.rawQuery('''
+      SELECT 
+        h.*,
+        t.total
+      FROM product_stock_history h
+      LEFT JOIN transactions t
+        ON h.transaction_id = t.id
+      ORDER BY h.trans_date DESC
+    ''');
 
     setState(() {
       _history = history;
@@ -41,16 +46,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _syncHistory() async {
-    setState(() {
-      _loading = true;
-    });
+    setState(() => _loading = true);
 
-    await syncOfflineStockHistory(); // Call your existing sync function
-    await _fetchHistory(); // Refresh the list after syncing
+    await syncOfflineStockHistory();
+    await _fetchHistory();
 
-    setState(() {
-      _loading = false;
-    });
+    setState(() => _loading = false);
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Stock history synced!')),
@@ -70,7 +71,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
           IconButton(
             icon: const Icon(Icons.sync),
             onPressed: _syncHistory,
-            tooltip: 'Sync with Supabase',
           ),
         ],
       ),
@@ -82,33 +82,41 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   itemCount: _history.length,
                   itemBuilder: (context, index) {
                     final entry = _history[index];
+
                     return Card(
                       margin: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: _getSyncColor(entry['is_synced']),
+                          backgroundColor:
+                              _getSyncColor(entry['is_synced'] ?? 0),
                           child: const Icon(Icons.inventory),
                         ),
                         title: Text(
-                          'Product ID: ${entry['product_id']} | ${entry['product_name']} Qty Changed: ${entry['qty_changed']}',
+                          '${entry['product_name']} | Qty: ${entry['qty_changed']}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('Old Stock: ${entry['old_stock']}'),
                             Text('New Stock: ${entry['new_stock']}'),
+                            Text('Type: ${entry['change_type'] ?? 'adjust'}'),
                             Text(
-                              'Type: ${entry['change_type'] ?? 'adjust'}',
+                              'Total Sale: ₱${entry['total'] ?? 0}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                            Text(
-                              'Date: ${entry['trans_date']}',
-                            ),
+                            Text('Date: ${entry['trans_date']}'),
                           ],
                         ),
                         trailing: entry['is_synced'] == 1
                             ? const Icon(Icons.check, color: Colors.green)
-                            : const Icon(Icons.cloud_upload, color: Colors.red),
+                            : const Icon(Icons.cloud_upload,
+                                color: Colors.red),
                       ),
                     );
                   },

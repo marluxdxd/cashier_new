@@ -762,6 +762,7 @@ CREATE TABLE transaction_items(
   }
 
 Future<void> insertStockHistory({
+  required int transactionId, // ✅ ADD
   required int id,
   required int productId,
   required String productName,       // ✅ NEW
@@ -778,6 +779,7 @@ Future<void> insertStockHistory({
   await db.insert(
     'product_stock_history',
     {
+      'transaction_id': transactionId, // ✅ SAVE IT
       'id': id,
       'product_id': productId,
       'product_name': productName,    // ✅ INSERT NAME

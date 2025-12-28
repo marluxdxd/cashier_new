@@ -442,6 +442,7 @@ class _HomeState extends State<Home> {
       );
 
       await localDb.insertStockHistory(
+        transactionId: localTransactionId, // ✅ ADD IT HERE
         id: generateUniqueId(prefix: "H").hashCode.abs(),
         productId: product.id,
         productName: product.name, 
