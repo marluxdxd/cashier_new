@@ -160,131 +160,140 @@ class ProductService {
   }
 
   Future<void> syncOfflineStockHistory() async {
-  print("📦 syncOfflineStockHistory START");
-  final db = await LocalDatabase().database;
+    print("📦 syncOfflineStockHistory START");
+    final db = await LocalDatabase().database;
 
-  // 🔹 DEBUG: Print all local stock history
-  final allHistory = await db.query('product_stock_history');
-  print("📋 LOCAL STOCK HISTORY (ALL ROWS):");
-  for (var row in allHistory) {
-    print(row);
-  }
+    // 🔹 DEBUG: Print all local stock history
+    final allHistory = await db.query('product_stock_history');
+    print("📋 LOCAL STOCK HISTORY (ALL ROWS):");
+    for (var row in allHistory) {
+      print(row);
+    }
 
+    // 1️⃣ Get all unsynced stock history
+    final unsyncedHistory = await db.query(
+      'product_stock_history',
+      where: 'is_synced = ?',
+      whereArgs: [0],
+    );
+    print("➡️ Unsynced history count: ${unsyncedHistory.length}");
 
+    if (unsyncedHistory.isEmpty) {
+      print("✅ No stock history to sync");
+      return;
+    }
 
-  // 1️⃣ Get all unsynced stock history
-  final unsyncedHistory = await db.query(
-    'product_stock_history',
-    where: 'is_synced = ?',
-    whereArgs: [0],
-  );
-  print("➡️ Unsynced history count: ${unsyncedHistory.length}");
-
-  if (unsyncedHistory.isEmpty) {
-    print("✅ No stock history to sync");
-    return;
-  }
-
-  for (var entry in unsyncedHistory) {
-    try {
-      // 2️⃣ Ensure product_client_uuid exists
-      String clientUuid = entry['product_client_uuid']?.toString() ?? '';
-      if (clientUuid.isEmpty) {
-        print("❌ Stock history id ${entry['id']} has no product_client_uuid. Skipping.");
-        continue;
-      }
-
-      // 3️⃣ Fetch local product by client_uuid
-      final productList = await db.query(
-        'products',
-        where: 'client_uuid = ?',
-        whereArgs: [clientUuid],
-      );
-
-      if (productList.isEmpty) {
-        print("⚠️ Product not found locally for stock history id ${entry['id']}. Skipping.");
-        continue;
-      }
-
-      final product = productList.first;
-      final productName = product['name']?.toString() ?? 'unknown';
-
-      // 4️⃣ Ensure product exists in Supabase
-      final supaProduct = await supabase
-          .from('products')
-          .select('id')
-          .eq('client_uuid', clientUuid)
-          .maybeSingle();
-
-      int supaProductId;
-
-      if (supaProduct != null) {
-        supaProductId = supaProduct['id'] as int;
-      } else {
-        // Insert missing product
-        final inserted = await supabase
-            .from('products')
-            .insert({
-              'name': productName,
-              'price': product['price'] ?? 0.0,
-              'stock': product['stock'] ?? 0,
-              'is_promo': product['is_promo'] == 1,
-              'other_qty': product['other_qty'] ?? 0,
-              'client_uuid': clientUuid,
-            })
-            .select('id')
-            .maybeSingle();
-
-        if (inserted == null || inserted['id'] == null) {
-          print("❌ Failed to insert product '$productName'. Skipping stock history.");
+    for (var entry in unsyncedHistory) {
+      try {
+        // 2️⃣ Ensure product_client_uuid exists
+        String clientUuid = entry['product_client_uuid']?.toString() ?? '';
+        if (clientUuid.isEmpty) {
+          print(
+            "❌ Stock history id ${entry['id']} has no product_client_uuid. Skipping.",
+          );
           continue;
         }
 
-        supaProductId = inserted['id'] as int;
-        print("➕ Inserted missing product '$productName' to Supabase");
-      }
+        // 3️⃣ Fetch local product by client_uuid
+        final productList = await db.query(
+          'products',
+          where: 'client_uuid = ?',
+          whereArgs: [clientUuid],
+        );
 
-      print("🔍 SYNCING STOCK HISTORY ENTRY ID: ${entry['id']}");
-      print("➡️ supaProductId: $supaProductId");
-      print("➡️ clientUuid: $clientUuid");
+        if (productList.isEmpty) {
+          print(
+            "⚠️ Product not found locally for stock history id ${entry['id']}. Skipping.",
+          );
+          continue;
+        }
 
-      // 5️⃣ Insert stock history into Supabase including product_name
-      try {
-        await supabase.from('product_stock_history').insert({
-          
-          'product_id': supaProductId,
-          'product_name': productName, // ✅ Add product name
-          'old_stock': entry['old_stock'],
-          'new_stock': entry['new_stock'],
-          'qty_changed': entry['qty_changed'],
-          'change_type': entry['type']?.toString() ?? 'adjust', // <-- must match Supabase
-          'trans_date': entry['trans_date']?.toString() ?? DateTime.now().toIso8601String(),
-          'created_at': entry['created_at']?.toString() ?? DateTime.now().toIso8601String(),
-          'product_client_uuid': clientUuid,
-        });
+        final product = productList.first;
+        final productName = product['name']?.toString() ?? 'unknown';
+
+        // 4️⃣ Ensure product exists in Supabase
+        final supaProduct = await supabase
+            .from('products')
+            .select('id')
+            .eq('client_uuid', clientUuid)
+            .maybeSingle();
+
+        int supaProductId;
+
+        if (supaProduct != null) {
+          supaProductId = supaProduct['id'] as int;
+        } else {
+          // Insert missing product
+          final inserted = await supabase
+              .from('products')
+              .insert({
+                'name': productName,
+                'price': product['price'] ?? 0.0,
+                'stock': product['stock'] ?? 0,
+                'is_promo': product['is_promo'] == 1,
+                'other_qty': product['other_qty'] ?? 0,
+                'client_uuid': clientUuid,
+              })
+              .select('id')
+              .maybeSingle();
+
+          if (inserted == null || inserted['id'] == null) {
+            print(
+              "❌ Failed to insert product '$productName'. Skipping stock history.",
+            );
+            continue;
+          }
+
+          supaProductId = inserted['id'] as int;
+          print("➕ Inserted missing product '$productName' to Supabase");
+        }
+
+        print("🔍 SYNCING STOCK HISTORY ENTRY ID: ${entry['id']}");
+        print("➡️ supaProductId: $supaProductId");
+        print("➡️ clientUuid: $clientUuid");
+
+        // 5️⃣ Insert stock history into Supabase including product_name
+        try {
+          await supabase.from('product_stock_history').insert({
+            'product_id': supaProductId,
+            'product_name': productName, // ✅ Add product name
+            'old_stock': entry['old_stock'],
+            'new_stock': entry['new_stock'],
+            'qty_changed': entry['qty_changed'],
+            'change_type':
+                entry['type']?.toString() ??
+                'adjust', // <-- must match Supabase
+            'trans_date':
+                entry['trans_date']?.toString() ??
+                DateTime.now().toIso8601String(),
+            'created_at':
+                entry['created_at']?.toString() ??
+                DateTime.now().toIso8601String(),
+            'product_client_uuid': clientUuid,
+          });
+        } catch (e) {
+          print(
+            "❌ Failed to insert stock history id ${entry['id']} to Supabase: $e",
+          );
+          continue;
+        }
+
+        // 6️⃣ Mark stock history as synced locally
+        await db.update(
+          'product_stock_history',
+          {'is_synced': 1},
+          where: 'id = ?',
+          whereArgs: [entry['id']],
+        );
+
+        print("✅ Synced stock history id ${entry['id']}");
       } catch (e) {
-        print("❌ Failed to insert stock history id ${entry['id']} to Supabase: $e");
-        continue;
+        print("❌ Failed to sync stock history id ${entry['id']}: $e");
       }
-
-      // 6️⃣ Mark stock history as synced locally
-      await db.update(
-        'product_stock_history',
-        {'is_synced': 1},
-        where: 'id = ?',
-        whereArgs: [entry['id']],
-      );
-
-      print("✅ Synced stock history id ${entry['id']}");
-    } catch (e) {
-      print("❌ Failed to sync stock history id ${entry['id']}: $e");
     }
+
+    print("🎉 All offline stock history synced!");
   }
-
-  print("🎉 All offline stock history synced!");
-}
-
-
 
   //-----------------------LOCAL---------------------------------//
   Future<void> syncSingleProduct(int localId) async {
@@ -1024,5 +1033,17 @@ class ProductService {
     }
 
     print("🎉 All offline transaction items synced!");
+  }
+
+  Future<bool> productNameExists(String name) async {
+    final db = await localDb.database;
+
+    final result = await db.query(
+      'products', // change table name if needed
+      where: 'LOWER(name) = ?',
+      whereArgs: [name.toLowerCase()],
+    );
+
+    return result.isNotEmpty;
   }
 }

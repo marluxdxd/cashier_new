@@ -21,11 +21,34 @@ class _AddProductPageState extends State<AddProductPage> {
   int otherQty = 0;
 
   /// ------------------- SAVE PRODUCT ------------------- ///
+
   void saveProduct() async {
     final name = nameController.text.trim();
     final price = double.tryParse(priceController.text.trim()) ?? 0;
     final stock = int.tryParse(stockController.text.trim()) ?? 0;
     otherQty = int.tryParse(promoQtyController.text.trim()) ?? 0;
+    // Check internet connectivity
+    final online = await productService.isOnline1();
+    if (!online) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("No internet connection. Cannot save product."),
+        ),
+      );
+      return; // ⛔ stop EVERYTHING
+    }
+    // 🔴 CHECK DUPLICATE NAME
+    final exists = await productService.productNameExists(name);
+    if (exists) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Product $name price: $price stock: $stock already exists.',
+          ),
+        ),
+      );
+      return;
+    }
 
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -58,8 +81,6 @@ class _AddProductPageState extends State<AddProductPage> {
 
       setState(() => isLoading = false);
 
-      // 4️⃣ Show user feedback
-      final online = await productService.isOnline1();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -113,8 +134,6 @@ class _AddProductPageState extends State<AddProductPage> {
                 decoration: const InputDecoration(labelText: "Qty for Promo"),
               ),
 
-
-              
             TextField(
               controller: nameController,
               decoration: const InputDecoration(labelText: "Product Name"),

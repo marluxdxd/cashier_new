@@ -139,7 +139,7 @@ class LocalDatabase {
         price REAL NOT NULL,
         stock INTEGER NOT NULL,
         is_promo INTEGER DEFAULT 0,
-        other_qty INTEGER,
+        other_qty INTEGER DEFAULT 0,
         is_synced INTEGER DEFAULT 0,
         client_uuid TEXT UNIQUE,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -861,4 +861,6 @@ Future<void> insertStockHistory({
       );
     }
   }
+
+
 }
