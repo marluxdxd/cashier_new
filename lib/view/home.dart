@@ -13,6 +13,7 @@ import 'package:cashier/widget/sukli.dart';
 import 'package:cashier/widget/appdrawer.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'dart:async';
+import '../class/pos_row_manager.dart';
 
 // ------------------ Helper Functions ------------------
 String generateUniqueId({String prefix = "S"}) {
@@ -27,6 +28,7 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
+  bool isAutoNextRowOn = false; // default OFF
   bool isSyncingOnline = false;
   bool syncSuccess = false;
   StreamSubscription<InternetConnectionStatus>? _listener;
@@ -143,139 +145,132 @@ class _HomeState extends State<Home> {
 
   //-----------------Build Each POS Row---------------------------
   Widget buildRow(POSRow row, int index) {
-    double displayPrice = 0;
-    if (row.product != null) {
-      displayPrice = row.isPromo
-          ? row.product!.price
-          : row.product!.price * row.qty;
-    }
+  double displayPrice = 0;
+  if (row.product != null) {
+    displayPrice = row.isPromo
+        ? row.product!.price
+        : row.product!.price * row.qty;
+  }
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          // Product
-          Expanded(
-            flex: 6,
-            child: InkWell(
-              onTap: () async {
-                final selectedProduct =
-                    await showModalBottomSheet<Productclass>(
-                      context: context,
-                      isScrollControlled: true,
-                      builder: (_) => Productbottomsheet(),
-                    );
-                if (selectedProduct != null) {
-                  setState(() {
-                    row.product = selectedProduct;
-                    row.isPromo = selectedProduct.isPromo;
-                    row.otherQty = selectedProduct.isPromo
-                        ? selectedProduct.otherQty
-                        : 0;
-
-                    if (row == rows.last) _addEmptyRow();
-                  });
-                }
-              },
-              child: Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(row.product?.name ?? "Select Product"),
-              ),
-            ),
-          ),
-
-          SizedBox(width: 8),
-
-          // Quantity
-          Expanded(
-  flex: 2,
-  child: InkWell(
-    onTap: row.isPromo
-        ? null
-        : () async {
-            // If no product selected, open product bottom sheet first
-            if (row.product == null) {
-              final selectedProduct = await showModalBottomSheet<Productclass>(
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(
+      children: [
+        // ---------------- PRODUCT ----------------
+        Expanded(
+          flex: 6,
+          child: InkWell(
+            onTap: () async {
+              final selectedProduct =
+                  await showModalBottomSheet<Productclass>(
                 context: context,
                 isScrollControlled: true,
                 builder: (_) => Productbottomsheet(),
               );
-              if (selectedProduct == null) return; // user cancelled
+
+              if (selectedProduct == null) return;
+
               setState(() {
                 row.product = selectedProduct;
                 row.isPromo = selectedProduct.isPromo;
-                row.otherQty = selectedProduct.isPromo
-                    ? selectedProduct.otherQty
-                    : 0;
+                row.otherQty =
+                    selectedProduct.isPromo ? selectedProduct.otherQty : 0;
               });
-            }
 
-            // Now open quantity sheet if product exists
-            if (row.product != null) {
-              if (row.product!.stock == 0) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Product is out of stock!")),
+              // ================= AUTO NEXT ROW =================
+              if (isAutoNextRowOn && !row.isPromo) {
+                final qty = await showModalBottomSheet<int>(
+                  context: context,
+                  builder: (_) =>
+                      Qtybottomsheet(stock: row.product!.stock),
                 );
-                return;
+
+                if (qty != null) {
+                  setState(() {
+                    row.qty = qty;
+                    if (row == rows.last) _addEmptyRow();
+                  });
+                }
+              } else {
+                // Manual mode → add empty row after product select
+                if (row == rows.last) _addEmptyRow();
               }
-
-              final qty = await showModalBottomSheet<int>(
-                context: context,
-                builder: (_) => Qtybottomsheet(stock: row.product!.stock),
-              );
-
-              if (qty != null) {
-                setState(() {
-                  row.qty = qty;
-                  if (row == rows.last) _addEmptyRow();
-                });
-              }
-            }
-          },
-    child: Container(
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey),
-        borderRadius: BorderRadius.circular(4),
-        color: row.isPromo ? Colors.grey[200] : Colors.white,
-      ),
-      child: Text(
-        row.isPromo
-            ? row.otherQty.toString()
-            : (row.qty == 0 ? "Qty" : row.qty.toString()),
-        textAlign: TextAlign.center,
-      ),
-    ),
-  ),
-),
-
-
-          SizedBox(width: 8),
-
-          // Row total
-          Text(
-            "₱${displayPrice.toStringAsFixed(2)}",
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-
-          // Delete button
-          IconButton(
-            icon: Icon(Icons.delete, color: Colors.red),
-            onPressed: () {
-              setState(() {
-                rows.removeAt(index);
-                if (rows.isEmpty) _addEmptyRow();
-              });
             },
+            child: Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(row.product?.name ?? "Select Product"),
+            ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+
+        SizedBox(width: 8),
+
+        // ---------------- QTY ----------------
+        Expanded(
+          flex: 2,
+          child: InkWell(
+            onTap: row.isPromo
+                ? null
+                : () async {
+                    if (row.product == null) return;
+
+                    final qty = await showModalBottomSheet<int>(
+                      context: context,
+                      builder: (_) =>
+                          Qtybottomsheet(stock: row.product!.stock),
+                    );
+
+                    if (qty != null) {
+                      setState(() {
+                        row.qty = qty;
+                        if (row == rows.last) _addEmptyRow();
+                      });
+                    }
+                  },
+            child: Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey),
+                borderRadius: BorderRadius.circular(4),
+                color: row.isPromo ? Colors.grey[200] : Colors.white,
+              ),
+              child: Text(
+                row.isPromo
+                    ? row.otherQty.toString()
+                    : (row.qty == 0 ? "Qty" : row.qty.toString()),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ),
+
+        SizedBox(width: 8),
+
+        // ---------------- TOTAL ----------------
+        Text(
+          "₱${displayPrice.toStringAsFixed(2)}",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+
+        // ---------------- DELETE ----------------
+        IconButton(
+          icon: Icon(Icons.delete, color: Colors.red),
+          onPressed: () {
+            setState(() {
+              rows.removeAt(index);
+              if (rows.isEmpty) _addEmptyRow();
+            });
+          },
+        ),
+      ],
+    ),
+  );
+}
+
 
   //------------------------------------------------------------
   @override
@@ -313,6 +308,32 @@ class _HomeState extends State<Home> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
+            //---------------------- Auto Next Row Button ----------------------
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  isAutoNextRowOn = !isAutoNextRowOn; // toggle ON/OFF
+                });
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isAutoNextRowOn
+                      ? Colors.red
+                      : Colors.black, // color depends on state
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  isAutoNextRowOn ? "Auto Next Row: ON" : "Auto Next Row: OFF",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+
             // PRODUCT+QTY ROWS
             Expanded(
               child: ListView.builder(

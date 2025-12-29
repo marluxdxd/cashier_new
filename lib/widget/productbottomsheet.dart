@@ -112,78 +112,83 @@ class _ProductbottomsheetState extends State<Productbottomsheet> {
 
               // Product list
               Expanded(
-  child: matchedProducts.isEmpty
-      ? Center(child: Text("No products found"))
-      : ListView.builder(
-          itemCount: matchedProducts.length,
-          itemBuilder: (_, index) {
-            final product = matchedProducts[index];
+                child: matchedProducts.isEmpty
+                    ? Center(child: Text("No products found"))
+                    : ListView.builder(
+                        itemCount: matchedProducts.length,
+                        itemBuilder: (_, index) {
+                          final product = matchedProducts[index];
 
-            return Container(
-        
-              child: ListTile(
-                title: Row(
-                  children: [
-                    Text(product.name),
-                    if (product.isPromo) ...[
-                      SizedBox(width: 6),
-                      Container(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          "PROMO ${product.otherQty}x${product.price}",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 8,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                          return Container(
+                            child: ListTile(
+                              title: Row(
+                                children: [
+                                  Text(product.name),
+                                  if (product.isPromo) ...[
+                                    SizedBox(width: 6),
+                                    Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        "PROMO ${product.otherQty}x${product.price}",
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 8,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                  if (product.stock == 0) ...[
+                                    SizedBox(width: 6),
+                                    Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        "NO STOCK",
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 8,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              subtitle: Text(
+                                'Price: ₱${product.price} • Stock: ${product.stock}',
+                              ),
+                              onTap: product.stock == 0
+                                  ? null // disable tap if out of stock
+                                  : () {
+                                      FocusScope.of(context).unfocus();
+                                      Navigator.pop(context, product);
+                                      print("You selected: ${product.name}");
+                                    },
+                            ),
+                          );
+                        },
                       ),
-                    ],
-                    if (product.stock == 0) ...[
-                      SizedBox(width: 6),
-                      Container(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.grey,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          "NOT AVAILABLE",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 8,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                subtitle: Text(
-                  'Price: ₱${product.price} • Stock: ${product.stock}',
-                ),
-                onTap: product.stock == 0
-                    ? null // disable tap if out of stock
-                    : () {
-                        FocusScope.of(context).unfocus();
-                        Navigator.pop(context, product);
-                        print("You selected: ${product.name}");
-                      },
+                      
               ),
-            );
-          },
-        ),
-),
-
+              
             ],
           ),
         ),
+        
       ),
     );
   }
