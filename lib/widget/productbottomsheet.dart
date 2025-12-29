@@ -3,7 +3,7 @@ import 'package:cashier/services/product_service.dart';
 import 'package:cashier/class/productclass.dart';
 
 class Productbottomsheet extends StatefulWidget {
-  const Productbottomsheet({super.key,});
+  const Productbottomsheet({super.key});
 
   @override
   State<Productbottomsheet> createState() => _ProductbottomsheetState();
@@ -12,7 +12,7 @@ class Productbottomsheet extends StatefulWidget {
 class _ProductbottomsheetState extends State<Productbottomsheet> {
   ValueNotifier<bool> isSelected = ValueNotifier(false);
   TextEditingController searchController = TextEditingController();
- final productService = ProductService();  // ← importante kaayo
+  final productService = ProductService(); // ← importante kaayo
   List<Productclass> products = []; // Full list from Supabase
   List<Productclass> matchedProducts = []; // Filtered list for UI
   String input = "";
@@ -22,36 +22,34 @@ class _ProductbottomsheetState extends State<Productbottomsheet> {
     super.initState();
     isSelected.dispose();
     // fetchProductsFromSupabase();
-    loadProducts();  // ← new metho
-      productService.listenToConnectivity(() async {
-    loadProducts();
-  });
-    
+    loadProducts(); // ← new metho
+    productService.listenToConnectivity(() async {
+      loadProducts();
+    });
   }
+
   @override
-void dispose() {
-  productService.disposeConnectivity();
-  searchController.dispose();
-  super.dispose();
-}
-  
+  void dispose() {
+    productService.disposeConnectivity();
+    searchController.dispose();
+    super.dispose();
+  }
 
   void loadProducts() async {
-  try {
-    final fetchedProducts = await productService.getAllProducts();
-    if (!mounted) return;
+    try {
+      final fetchedProducts = await productService.getAllProducts();
+      if (!mounted) return;
 
-    setState(() {
-      products = fetchedProducts;
-      matchedProducts = fetchedProducts;
-    });
+      setState(() {
+        products = fetchedProducts;
+        matchedProducts = fetchedProducts;
+      });
 
-    print("Loaded products: ${products.length}");
-  } catch (e) {
-    print("Error loading products: $e");
+      print("Loaded products: ${products.length}");
+    } catch (e) {
+      print("Error loading products: $e");
+    }
   }
-}
-
 
   void fetchProductsFromSupabase() async {
     try {
@@ -81,8 +79,8 @@ void dispose() {
       padding: MediaQuery.of(context).viewInsets,
       child: SafeArea(
         child: Container(
-          height: MediaQuery.of(context).size.height * 0.5,
-          padding: EdgeInsets.all(12),
+          height: MediaQuery.of(context).size.height * 0.3,
+          padding: EdgeInsets.all(8),
           child: Column(
             children: [
               // Drag handle
@@ -113,23 +111,71 @@ void dispose() {
               SizedBox(height: 10),
 
               // Product list
-         Expanded(
+              Expanded(
   child: matchedProducts.isEmpty
       ? Center(child: Text("No products found"))
       : ListView.builder(
           itemCount: matchedProducts.length,
           itemBuilder: (_, index) {
             final product = matchedProducts[index];
-            return ListTile(
-              title: Text(product.name),
-              subtitle: Text(
-                'Price: ₱${product.price} • Stock: ${product.stock}',
+
+            return Container(
+        
+              child: ListTile(
+                title: Row(
+                  children: [
+                    Text(product.name),
+                    if (product.isPromo) ...[
+                      SizedBox(width: 6),
+                      Container(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          "PROMO ${product.otherQty}x${product.price}",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                    if (product.stock == 0) ...[
+                      SizedBox(width: 6),
+                      Container(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.grey,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          "NOT AVAILABLE",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                subtitle: Text(
+                  'Price: ₱${product.price} • Stock: ${product.stock}',
+                ),
+                onTap: product.stock == 0
+                    ? null // disable tap if out of stock
+                    : () {
+                        FocusScope.of(context).unfocus();
+                        Navigator.pop(context, product);
+                        print("You selected: ${product.name}");
+                      },
               ),
-              onTap: () {
-                FocusScope.of(context).unfocus();
-                Navigator.pop(context, product);
-                print("You selected: ${product.name}");
-              },
             );
           },
         ),
