@@ -34,18 +34,21 @@ class _HomeState extends State<Home> {
   StreamSubscription<InternetConnectionStatus>? _listener;
   StreamSubscription<ConnectivityResult>? _connectivityListener;
 
-  //----------------------Controller---------------------------
-  List<POSRow> rows = [POSRow()]; // Start with one empty row
+  // ----------------- Controllers & Services -----------------
   TextEditingController customerCashController = TextEditingController();
   final TransactionService transactionService = TransactionService();
-  List<Productclass> matchedProducts = [];
-  final productService = ProductService(); // ← importante kaayo
+  final ProductService productService = ProductService();
 
   bool isSyncing = false; // Loading indicator
+
+  // ----------------- POS Manager -----------------
+  late POSRowManager posManager;
 
   @override
   void initState() {
     super.initState();
+    posManager = POSRowManager(context);
+
     // 🔹 Automatic sync on startup
     _syncOnStartup();
 
@@ -53,19 +56,18 @@ class _HomeState extends State<Home> {
     syncProducts();
 
     // Listen for connection changes
-    _listener = InternetConnectionChecker().onStatusChange.listen((
-      status,
-    ) async {
+    _listener =
+        InternetConnectionChecker().onStatusChange.listen((status) async {
       if (status == InternetConnectionStatus.connected) {
         await productService.syncOfflineProducts();
         await productService.syncOnlineProducts();
-        await transactionService.syncOfflineTransactions(); // 👈 IMPORTANT
+        await transactionService.syncOfflineTransactions();
         await syncProducts();
       }
     });
-    _connectivityListener = Connectivity().onConnectivityChanged.listen((
-      status,
-    ) {
+
+    _connectivityListener =
+        Connectivity().onConnectivityChanged.listen((status) {
       if (status != ConnectivityResult.none) syncProducts();
     });
   }
@@ -83,24 +85,24 @@ class _HomeState extends State<Home> {
     setState(() {
       isSyncing = true;
       syncSuccess = false;
-      matchedProducts.clear();
+      posManager.rows.clear();
     });
 
     try {
       await productService.syncOfflineProducts();
       final latestProducts = await productService.getAllProducts();
 
-      if (!mounted) return; // ✅ check again
+      if (!mounted) return;
 
       setState(() {
-        matchedProducts = latestProducts;
+        posManager.rows = [POSRow()]; // start empty row
         syncSuccess = true;
       });
       print("Sync completed successfully!");
     } catch (e) {
       print("Error during product sync: $e");
     } finally {
-      if (!mounted) return; // ✅ check again
+      if (!mounted) return;
       setState(() => isSyncing = false);
     }
   }
@@ -109,168 +111,19 @@ class _HomeState extends State<Home> {
   void dispose() {
     _listener?.cancel();
     _connectivityListener?.cancel();
-    customerCashController.dispose(); // existing controller dispose
-
+    customerCashController.dispose();
     super.dispose();
   }
 
-  void loadProducts() async {
-    final products = await productService.getAllProducts();
+  void _updateUI() {
+    setState(() {});
+  }
+
+  void _toggleAutoNextRow() {
     setState(() {
-      matchedProducts = products;
+      isAutoNextRowOn = !isAutoNextRowOn;
     });
   }
-
-  //-----------------Add Empty Row---------------------------------
-  void _addEmptyRow() {
-    setState(() {
-      rows.add(POSRow());
-    });
-  }
-
-  //-----------------Compute Total Bill---------------------------
-  double get totalBill {
-    double total = 0;
-    for (var row in rows) {
-      if (row.product != null) {
-        if (row.isPromo) {
-          total += row.product!.price;
-        } else {
-          total += row.product!.price * row.qty;
-        }
-      }
-    }
-    return total;
-  }
-
-  //-----------------Build Each POS Row---------------------------
-  Widget buildRow(POSRow row, int index) {
-  double displayPrice = 0;
-  if (row.product != null) {
-    displayPrice = row.isPromo
-        ? row.product!.price
-        : row.product!.price * row.qty;
-  }
-
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
-    child: Row(
-      children: [
-        // ---------------- PRODUCT ----------------
-        Expanded(
-          flex: 6,
-          child: InkWell(
-            onTap: () async {
-              final selectedProduct =
-                  await showModalBottomSheet<Productclass>(
-                context: context,
-                isScrollControlled: true,
-                builder: (_) => Productbottomsheet(),
-              );
-
-              if (selectedProduct == null) return;
-
-              setState(() {
-                row.product = selectedProduct;
-                row.isPromo = selectedProduct.isPromo;
-                row.otherQty =
-                    selectedProduct.isPromo ? selectedProduct.otherQty : 0;
-              });
-
-              // ================= AUTO NEXT ROW =================
-              if (isAutoNextRowOn && !row.isPromo) {
-                final qty = await showModalBottomSheet<int>(
-                  context: context,
-                  builder: (_) =>
-                      Qtybottomsheet(stock: row.product!.stock),
-                );
-
-                if (qty != null) {
-                  setState(() {
-                    row.qty = qty;
-                    if (row == rows.last) _addEmptyRow();
-                  });
-                }
-              } else {
-                // Manual mode → add empty row after product select
-                if (row == rows.last) _addEmptyRow();
-              }
-            },
-            child: Container(
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(row.product?.name ?? "Select Product"),
-            ),
-          ),
-        ),
-
-        SizedBox(width: 8),
-
-        // ---------------- QTY ----------------
-        Expanded(
-          flex: 2,
-          child: InkWell(
-            onTap: row.isPromo
-                ? null
-                : () async {
-                    if (row.product == null) return;
-
-                    final qty = await showModalBottomSheet<int>(
-                      context: context,
-                      builder: (_) =>
-                          Qtybottomsheet(stock: row.product!.stock),
-                    );
-
-                    if (qty != null) {
-                      setState(() {
-                        row.qty = qty;
-                        if (row == rows.last) _addEmptyRow();
-                      });
-                    }
-                  },
-            child: Container(
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey),
-                borderRadius: BorderRadius.circular(4),
-                color: row.isPromo ? Colors.grey[200] : Colors.white,
-              ),
-              child: Text(
-                row.isPromo
-                    ? row.otherQty.toString()
-                    : (row.qty == 0 ? "Qty" : row.qty.toString()),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-        ),
-
-        SizedBox(width: 8),
-
-        // ---------------- TOTAL ----------------
-        Text(
-          "₱${displayPrice.toStringAsFixed(2)}",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-
-        // ---------------- DELETE ----------------
-        IconButton(
-          icon: Icon(Icons.delete, color: Colors.red),
-          onPressed: () {
-            setState(() {
-              rows.removeAt(index);
-              if (rows.isEmpty) _addEmptyRow();
-            });
-          },
-        ),
-      ],
-    ),
-  );
-}
-
 
   //------------------------------------------------------------
   @override
@@ -308,23 +161,20 @@ class _HomeState extends State<Home> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            //---------------------- Auto Next Row Button ----------------------
+            // ---------------- Auto Next Row Button ----------------
             GestureDetector(
-              onTap: () {
-                setState(() {
-                  isAutoNextRowOn = !isAutoNextRowOn; // toggle ON/OFF
-                });
-              },
+              onTap: _toggleAutoNextRow,
               child: Container(
                 padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isAutoNextRowOn
-                      ? Colors.red
-                      : Colors.black, // color depends on state
+                  color:
+                      isAutoNextRowOn ? Colors.red : Colors.black, // color depends on state
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  isAutoNextRowOn ? "Auto Next Row: ON" : "Auto Next Row: OFF",
+                  isAutoNextRowOn
+                      ? "Auto Next Row: ON"
+                      : "Auto Next Row: OFF",
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -334,13 +184,19 @@ class _HomeState extends State<Home> {
               ),
             ),
 
-            // PRODUCT+QTY ROWS
+            // ---------------- POS Rows ----------------
             Expanded(
               child: ListView.builder(
-                itemCount: rows.length,
-                itemBuilder: (_, index) => buildRow(rows[index], index),
+                itemCount: posManager.rows.length,
+                itemBuilder: (_, index) => posManager.buildRow(
+                  posManager.rows[index],
+                  index,
+                  onUpdate: _updateUI,
+                  isAutoNextRowOn: isAutoNextRowOn,
+                ),
               ),
             ),
+
             IconButton(
               icon: const Icon(Icons.storage),
               tooltip: "Open DB Debug",
@@ -353,7 +209,7 @@ class _HomeState extends State<Home> {
             ),
             SizedBox(height: 20),
 
-            // TOTAL BILL
+            // ---------------- TOTAL BILL ----------------
             Container(
               padding: EdgeInsets.symmetric(vertical: 16, horizontal: 20),
               decoration: BoxDecoration(
@@ -375,7 +231,7 @@ class _HomeState extends State<Home> {
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   Text(
-                    "₱${totalBill.toStringAsFixed(2)}",
+                    "₱${posManager.totalBill.toStringAsFixed(2)}",
                     style: TextStyle(
                       color: Colors.red,
                       fontSize: 20,
@@ -388,7 +244,7 @@ class _HomeState extends State<Home> {
 
             SizedBox(height: 20),
 
-            // CUSTOMER CASH
+            // ---------------- CUSTOMER CASH ----------------
             TextField(
               controller: customerCashController,
               keyboardType: TextInputType.number,
@@ -396,13 +252,14 @@ class _HomeState extends State<Home> {
                 labelText: "Customer Cash",
                 border: OutlineInputBorder(),
               ),
-
               onSubmitted: (_) async {
                 if (isSyncingOnline) return;
 
-                double cash = double.tryParse(customerCashController.text) ?? 0;
+                double cash =
+                    double.tryParse(customerCashController.text) ?? 0;
 
-                if (!transactionService.isCashSufficient(totalBill, cash)) {
+                if (!transactionService.isCashSufficient(
+                    posManager.totalBill, cash)) {
                   print("Cash is not enough yet.");
                   return;
                 }
@@ -413,17 +270,13 @@ class _HomeState extends State<Home> {
                     await InternetConnectionChecker().hasConnection;
                 final localDb = LocalDatabase();
                 double change = transactionService.calculateChange(
-                  totalBill,
-                  cash,
-                );
+                    posManager.totalBill, cash);
                 String timestamp = getPhilippineTimestampFormatted();
 
-                // ================= 0️⃣ COMBINE SAME PRODUCTS =================
+                // ---------------- COMBINE SAME PRODUCTS ----------------
                 final Map<int, POSRow> combinedItems = {};
-
-                for (final row in rows) {
+                for (final row in posManager.rows) {
                   if (row.product == null) continue;
-
                   final product = row.product!;
                   final qty = row.isPromo ? row.otherQty : row.qty;
 
@@ -433,21 +286,20 @@ class _HomeState extends State<Home> {
                     combinedItems[product.id] = POSRow(
                       product: product,
                       qty: qty,
-                      isPromo: product.isPromo,
-                      otherQty: product.otherQty,
+                      isPromo: row.isPromo,
+                      otherQty: row.otherQty,
                     );
                   }
                 }
 
                 try {
-                  // ================= 1️⃣ INSERT TRANSACTION =================
-                  final int localTransactionId = generateUniqueId(
-                    prefix: "T",
-                  ).hashCode.abs();
+                  // ---------------- INSERT TRANSACTION ----------------
+                  final int localTransactionId =
+                      generateUniqueId(prefix: "T").hashCode.abs();
 
                   await localDb.insertTransaction(
                     id: localTransactionId,
-                    total: totalBill,
+                    total: posManager.totalBill,
                     cash: cash,
                     change: change,
                     createdAt: timestamp,
@@ -456,20 +308,18 @@ class _HomeState extends State<Home> {
 
                   int onlineTransactionId = localTransactionId;
                   if (online) {
-                    onlineTransactionId = await transactionService
-                        .saveTransaction(
-                          total: totalBill,
-                          cash: cash,
-                          change: change,
-                        );
+                    onlineTransactionId = await transactionService.saveTransaction(
+                      total: posManager.totalBill,
+                      cash: cash,
+                      change: change,
+                    );
                   }
 
-                  // ================= 2️⃣ SAVE COMBINED ITEMS =================
+                  // ---------------- SAVE COMBINED ITEMS ----------------
                   for (final row in combinedItems.values) {
                     final product = row.product!;
                     final qtySold = row.qty;
 
-                    // 🔹 Transaction item
                     await localDb.insertTransactionItem(
                       id: generateUniqueId(prefix: "TI").hashCode.abs(),
                       transactionId: localTransactionId,
@@ -479,11 +329,9 @@ class _HomeState extends State<Home> {
                       price: product.price,
                       isPromo: product.isPromo,
                       otherQty: product.otherQty,
-                      productClientUuid:
-                          product.productClientUuid, // ❗ guaranteed
+                      productClientUuid: product.productClientUuid,
                     );
 
-                    // 🔹 Stock update
                     int? oldStock = await localDb.getProductStock(product.id);
                     if (oldStock == null) continue;
 
@@ -499,7 +347,7 @@ class _HomeState extends State<Home> {
                     );
 
                     await localDb.insertStockHistory(
-                      transactionId: localTransactionId, // ✅ ADD IT HERE
+                      transactionId: localTransactionId,
                       id: generateUniqueId(prefix: "H").hashCode.abs(),
                       productId: product.id,
                       productName: product.name,
@@ -518,10 +366,8 @@ class _HomeState extends State<Home> {
                       type: 'SALE',
                     );
 
-                    // 🔹 Online sync
                     if (online) {
                       await productService.syncSingleProductOnline(product.id);
-
                       await transactionService.saveTransactionItem(
                         transactionId: onlineTransactionId,
                         product: product,
@@ -532,14 +378,14 @@ class _HomeState extends State<Home> {
                     }
                   }
 
-                  // ================= 3️⃣ FINAL SYNC =================
+                  // ---------------- FINAL SYNC ----------------
                   if (online) {
                     await productService.syncOnlineProducts();
                     await productService.syncOfflineStockHistory();
                     await productService.syncOfflineProducts();
                   }
 
-                  // ================= 4️⃣ UI RESET =================
+                  // ---------------- UI RESET ----------------
                   if (mounted) {
                     showDialog(
                       context: context,
@@ -548,7 +394,8 @@ class _HomeState extends State<Home> {
                     );
 
                     customerCashController.clear();
-                    setState(() => rows = [POSRow()]);
+                    posManager.reset();
+                    _updateUI();
                   }
 
                   print("✅ TRANSACTION SUCCESS");
