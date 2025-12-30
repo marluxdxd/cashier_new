@@ -1,34 +1,30 @@
-// class TransactionItems {
-//   final int id;
-//   final int transactionId;
-//   final int productId;
-//   final String productName;
-//   final int qty;
-//   final double price;
-//   final bool isPromo;
-//   final int otherQty;
+// import 'package:cashier/database/local_db.dart';
 
-//   TransactionItems({
-//     required this.id,
-//     required this.transactionId,
-//     required this.productId,
-//     required this.productName,
-//     required this.qty,
-//     required this.price,
-//     required this.isPromo,
-//     required this.otherQty,
-//   });
+// Future<void> insertTransactionItem({
+//   required int id,
+//   required int transactionId,
+//   required int productId,
+//   required String productName,
+//   required int qty,
+//   required double price,
+//   required bool isPromo,
+//   required int otherQty,
+//   required String productClientUuid,
+// }) async {
+//   final db = await localDb.database;
 
-//   factory TransactionItems.fromMap(Map<String, dynamic> map) {
-//     return TransactionItems(
-//       id: map['item_id'] ?? map['id'],
-//       transactionId: map['transaction_id'],
-//       productId: map['product_id'],
-//       productName: map['product_name'] ?? "",
-//       qty: map['qty'],
-//       price: (map['price'] as num).toDouble(),
-//       isPromo: map['is_promo'] == 1,
-//       otherQty: map['other_qty'] ?? 0,
-//     );
-//   }
+//   await db.insert(
+//     'transaction_items',
+//     {
+//       'id': id,
+//       'transaction_id': transactionId,
+//       'product_id': productId,
+//       'product_name': productName,
+//       'qty': qty,
+//       'price': price,
+//       'is_promo': isPromo ? 1 : 0,
+//       'other_qty': otherQty,
+//       'product_client_uuid': productClientUuid,
+//     },
+//   );
 // }

@@ -68,8 +68,9 @@ class POSRowManager {
   }) {
     double displayPrice = 0;
     if (row.product != null) {
-      displayPrice =
-          row.isPromo ? row.product!.price : row.product!.price * row.qty;
+      displayPrice = row.isPromo
+          ? row.product!.price
+          : row.product!.price * row.qty;
     }
 
     return Padding(
@@ -86,16 +87,17 @@ class POSRowManager {
                 } else {
                   final selectedProduct =
                       await showModalBottomSheet<Productclass>(
-                    context: context,
-                    isScrollControlled: true,
-                    builder: (_) => Productbottomsheet(),
-                  );
+                        context: context,
+                        isScrollControlled: true,
+                        builder: (_) => Productbottomsheet(),
+                      );
 
                   if (selectedProduct != null) {
                     row.product = selectedProduct;
                     row.isPromo = selectedProduct.isPromo;
-                    row.otherQty =
-                        selectedProduct.isPromo ? selectedProduct.otherQty : 0;
+                    row.otherQty = selectedProduct.isPromo
+                        ? selectedProduct.otherQty
+                        : 0;
                     row.qty = 0;
 
                     if (row == rows.last) addEmptyRow();

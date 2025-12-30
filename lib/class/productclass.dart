@@ -5,10 +5,10 @@ class Productclass {
   final String name;
   final double price;
   int stock;
-  final bool isPromo; 
-  final int otherQty; 
+  final bool isPromo;
+  final int otherQty;
   final String type; // 'add', 'update', 'delete' for sync
-    final String productClientUuid;
+  final String productClientUuid;
 
   Productclass({
     required this.id,
@@ -19,12 +19,20 @@ class Productclass {
     this.isPromo = false, // default false
     this.otherQty = 0, // default 0
     this.type = 'add',
-    
   });
 
   // Convert to Map for Supabase insert/update
   Map<String, dynamic> toMap() {
-    return {'id': id, 'name': name, 'price': price, 'stock': stock, 'is_promo': isPromo, 'other_qty': otherQty,'client_uuid': productClientUuid,'type': type,};
+    return {
+      'id': id,
+      'name': name,
+      'price': price,
+      'stock': stock,
+      'is_promo': isPromo,
+      'other_qty': otherQty,
+      'client_uuid': productClientUuid,
+      'type': type,
+    };
   }
 
   // Convert Supabase row → Productclass
@@ -52,5 +60,3 @@ class Productclass {
         .toList();
   }
 }
-
-

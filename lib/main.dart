@@ -24,6 +24,7 @@ void main() async {
 
   // Tan-awa tanan transactions sa local DB
   await localDb.printAllTransactions();
+  await localDb.printAllTransactionItems();
 
   final productService = ProductService();
   final transactionService = TransactionService ();

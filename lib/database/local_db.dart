@@ -95,13 +95,7 @@ class LocalDatabase {
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         // Migration for product_stock_history column fixes
-        if (oldVersion < 1) {
-    
-        
-
-    
-  
-        }
+        if (oldVersion < 1) {}
       },
     );
 
@@ -171,7 +165,7 @@ class LocalDatabase {
     ''');
 
     // Product stock history
-  await db.execute('''
+    await db.execute('''
 CREATE TABLE product_stock_history (
   id INTEGER PRIMARY KEY,
     transaction_id INTEGER,        -- ✅ ADD THIS
@@ -182,18 +176,17 @@ CREATE TABLE product_stock_history (
   new_stock INTEGER,
   change_type TEXT,        -- ✅ NEW
   trans_date TEXT,         -- ✅ NEW
-type TEXT,  
+  type TEXT,  
   created_at TEXT,
   product_client_uuid TEXT,
   is_synced INTEGER
 )
 ''');
 
-
     // Transaction items
     await db.execute('''
 CREATE TABLE transaction_items(
-  id INTEGER PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   transaction_id INTEGER NOT NULL,
   product_id INTEGER NOT NULL,
   product_name TEXT NOT NULL,
@@ -203,11 +196,10 @@ CREATE TABLE transaction_items(
   other_qty INTEGER,
   is_synced INTEGER DEFAULT 0,
   supabase_id INTEGER,
-  product_client_uuid text NOT NULL UNIQUE,
-
+  product_client_uuid text NOT NULL,
   FOREIGN KEY(transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
   FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE,
-  UNIQUE(transaction_id, product_client_uuid)
+  UNIQUE(transaction_id, product_id, product_client_uuid)
 )
 ''');
 
@@ -477,25 +469,25 @@ CREATE TABLE transaction_items(
   }
 
   // ------------------- PRINT ALL TRANSACTIONS ------------------- //
-  Future<void> printAllTransactions() async {
-    // 🔑 Get database instance
-    final db = await database;
+  Future<void> printAllTransactions() async {}
+  //   // 🔑 Get database instance
+  //   final db = await database;
 
-    // ✅ Fetch all transactions from local DB
-    final List<Map<String, dynamic>> transactions = await db.query(
-      'transactions',
-    );
+  //   // ✅ Fetch all transactions from local DB
+  //   final List<Map<String, dynamic>> transactions = await db.query(
+  //     'transactions',
+  //   );
 
-    // 🖨️ Print transactions or message if empty
-    if (transactions.isEmpty) {
-      print("Walay transactions sa local DB"); // No transactions found
-    } else {
-      print("Transactions in local DB:");
-      for (var t in transactions) {
-        print(t); // Print each transaction
-      }
-    }
-  }
+  //   // 🖨️ Print transactions or message if empty
+  //   if (transactions.isEmpty) {
+  //     print("Walay transactions sa local DB"); // No transactions found
+  //   } else {
+  //     print("Transactions in local DB:");
+  //     for (var t in transactions) {
+  //       print(t); // Print each transaction
+  //     }
+  //   }
+  // }
 
   // ------------------- SET LAST PRODUCT SYNC TIMESTAMP ------------------- //
   Future<void> setLastProductSync(DateTime timestamp) async {
@@ -705,32 +697,59 @@ CREATE TABLE transaction_items(
   // ------------------- TRANSACTION ITEMS CRUD ------------------- //
   // 🔹 Insert a new transaction item (replace if ID exists)
   Future<int> insertTransactionItem({
-    required int id,
-    required int transactionId,
-    required int productId,
-    required String productName,
-    required int qty,
-    required double price,
-    bool isPromo = false,
-    int otherQty = 0,
-    int isSynced = 0, // 0 = not synced, 1 = synced
-    String? productClientUuid,
-  }) async {
-    final db = await database;
-    return await db.insert('transaction_items', {
-      'id': id,
-      'transaction_id': transactionId,
-      'product_id': productId,
-      'product_name': productName,
-      'qty': qty,
-      'price': price,
-      'is_promo': isPromo ? 1 : 0,
-      'other_qty': otherQty,
-      'is_synced': isSynced,
-      'product_client_uuid': productClientUuid,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
-  }
+  required int id,
+  required int transactionId,
+  required int productId,
+  required String productName,
+  required int qty,
+  required double price,
+  bool isPromo = false,
+  int otherQty = 0,
+  int isSynced = 0, // 0 = not synced, 1 = synced
+  String? productClientUuid,
+}) async {
+  final db = await database;
 
+  try {
+    print("🟡 INSERTING transaction_items:");
+    print("  id: $id");
+    print("  transaction_id: $transactionId");
+    print("  product_id: $productId");
+    print("  product_name: $productName");
+    print("  qty: $qty");
+    print("  price: $price");
+    print("  is_promo: ${isPromo ? 1 : 0}");
+    print("  other_qty: $otherQty");
+    print("  is_synced: $isSynced");
+    print("  product_client_uuid: $productClientUuid");
+
+    final result = await db.insert(
+      'transaction_items',
+      {
+        'id': id,
+        'transaction_id': transactionId,
+        'product_id': productId,
+        'product_name': productName,
+        'qty': qty,
+        'price': price,
+        'is_promo': isPromo ? 1 : 0,
+        'other_qty': otherQty,
+        'is_synced': isSynced,
+        'product_client_uuid': productClientUuid,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+
+    print("✅ LOCAL INSERT SUCCESSFUL (transaction_items)");
+    print("➡️ sqlite row id: $result");
+
+    return result;
+  } catch (e) {
+    print("❌ LOCAL INSERT FAILED (transaction_items)");
+    print("🔥 ERROR: $e");
+    rethrow;
+  }
+}
   // 🔹 Fetch all transactions (main table)
   Future<List<Map<String, dynamic>>> getAllTransactions() async {
     final db = await database;
@@ -761,28 +780,26 @@ CREATE TABLE transaction_items(
     );
   }
 
-Future<void> insertStockHistory({
-  required int transactionId, // ✅ ADD
-  required int id,
-  required int productId,
-  required String productName,       // ✅ NEW
-  required int oldStock,
-  required int qtyChanged,
-  required int newStock,
-  required String type, // SALE, RESTOCK, ADJUSTMENT
-  required String createdAt,
-  required String productClientUuid,
-  required int synced, // 0 = offline, 1 = online
-}) async {
-  final db = await database;
+  Future<void> insertStockHistory({
+    required int transactionId, // ✅ ADD
+    required int id,
+    required int productId,
+    required String productName, // ✅ NEW
+    required int oldStock,
+    required int qtyChanged,
+    required int newStock,
+    required String type, // SALE, RESTOCK, ADJUSTMENT
+    required String createdAt,
+    required String productClientUuid,
+    required int synced, // 0 = offline, 1 = online
+  }) async {
+    final db = await database;
 
-  await db.insert(
-    'product_stock_history',
-    {
+    await db.insert('product_stock_history', {
       'transaction_id': transactionId, // ✅ SAVE IT
       'id': id,
       'product_id': productId,
-      'product_name': productName,    // ✅ INSERT NAME
+      'product_name': productName, // ✅ INSERT NAME
       'old_stock': oldStock,
       'qty_changed': qtyChanged,
       'new_stock': newStock,
@@ -791,14 +808,12 @@ Future<void> insertStockHistory({
       'created_at': createdAt,
       'product_client_uuid': productClientUuid,
       'is_synced': 0,
-    },
-    conflictAlgorithm: ConflictAlgorithm.replace,
-  );
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
 
-  print(
-    '📦 STOCK HISTORY INSERTED | product=$productId | name=$productName | qty=$qtyChanged | type=$type | transdate=$createdAt | productclientuuid=$productClientUuid | isynced=$synced',
-  );
-}
+    print(
+      '📦 STOCK HISTORY INSERTED | product=$productId | name=$productName | qty=$qtyChanged | type=$type | transdate=$createdAt | productclientuuid=$productClientUuid | isynced=$synced',
+    );
+  }
 
   Future<bool> productExists(int id) async {
     final db = await database;
@@ -862,5 +877,95 @@ Future<void> insertStockHistory({
     }
   }
 
+ // Add this function inside your LocalDatabase class
+Future<void> printAllTransactionItems() async {
+  final db = await database;
 
+  final rows = await db.query('transaction_items');
+
+  if (rows.isEmpty) {
+    print("📋 Walay transaction items sa local DB");
+    return;
+  }
+
+  print("📋 Transaction Items in local DB:");
+  for (var row in rows) {
+    print(row);
+  }
 }
+
+
+
+
+
+
+
+  Future<int> insertTransactionItemOffline({
+    required int transactionId,
+    required int productId,
+    required String productName,
+    required int qty,
+    required double price,
+    bool isPromo = false,
+    int otherQty = 0,
+  
+    String? productClientUuid,
+  }) async {
+    final db = await database;
+
+    final id = DateTime.now().millisecondsSinceEpoch; // unique local ID
+
+    return await db.insert(
+      'transaction_items',
+      {
+        'id': id,
+        'transaction_id': transactionId,
+        'product_id': productId,
+        'product_name': productName,
+        'qty': qty,
+        'price': price,
+        'is_promo': isPromo ? 1 : 0,
+        'other_qty': otherQty,
+   
+        'product_client_uuid': productClientUuid,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  //-----------------------
+  // GET ALL LOCAL TRANSACTION ITEMS
+  Future<List<Map<String, dynamic>>> getAllTransactionItems() async {
+    final db = await database;
+    return await db.query(
+      'transaction_items', // fetch tanan rows regardless of is_synced
+      orderBy: 'transaction_id DESC, id ASC',
+    );
+  }
+
+  //-----------------------
+  // GET ONLY UNSYNCED TRANSACTION ITEMS
+  Future<List<Map<String, dynamic>>> getUnsyncedTransactionItems() async {
+    final db = await database;
+    return await db.query(
+      'transaction_items',
+      where: 'is_synced = ?',
+      whereArgs: [0],
+    );
+  }
+
+  //-----------------------
+  // MARK ITEM AS SYNCED
+  Future<void> markTransactionItemSynced(int id) async {
+    final db = await database;
+    await db.update(
+      'transaction_items',
+      {'is_synced': 1},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+}
+
+
+
