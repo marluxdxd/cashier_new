@@ -163,12 +163,12 @@ class ProductService {
     print("📦 syncOfflineStockHistory START");
     final db = await LocalDatabase().database;
 
-    // 🔹 DEBUG: Print all local stock history
-    final allHistory = await db.query('product_stock_history');
-    print("📋 LOCAL STOCK HISTORY (ALL ROWS):");
-    for (var row in allHistory) {
-      print(row);
-    }
+    // // 🔹 DEBUG: Print all local stock history
+    // final allHistory = await db.query('product_stock_history');
+    // print("📋 LOCAL STOCK HISTORY (ALL ROWS):");
+    // for (var row in allHistory) {
+    //   print(row);
+    // }
 
     // 1️⃣ Get all unsynced stock history
     final unsyncedHistory = await db.query(

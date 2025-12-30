@@ -24,13 +24,14 @@ class POSRowManager {
   }
 
   // ================= AUTO FILL ROWS =================
-  Future<void> autoFillRows() async {
+  Future<void> autoFillRows(VoidCallback onUpdate) async {
     for (int i = 0; i < rows.length; i++) {
       final row = rows[i];
       if (row.product != null) continue;
 
       final selectedProduct = await showModalBottomSheet<Productclass>(
         context: context,
+        barrierColor: Colors.black.withOpacity(0.0),
         isScrollControlled: true,
         builder: (_) => Productbottomsheet(),
       );
@@ -42,18 +43,21 @@ class POSRowManager {
       row.otherQty = selectedProduct.isPromo ? selectedProduct.otherQty : 0;
       row.qty = 0;
 
+      onUpdate(); // 🔥 IMPORTANT: update UI immediately
+
       if (row == rows.last) addEmptyRow();
 
       // Qty sheet only if NOT promo
       if (!row.isPromo) {
         final qty = await showModalBottomSheet<int>(
           context: context,
+          barrierColor: Colors.black.withOpacity(0.0),
           builder: (_) => Qtybottomsheet(stock: row.product!.stock),
         );
 
         if (qty == null) break;
         row.qty = qty;
-
+        onUpdate(); // 🔥 update UI after qty
         if (row == rows.last) addEmptyRow();
       }
     }
@@ -82,38 +86,67 @@ class POSRowManager {
             flex: 6,
             child: InkWell(
               onTap: () async {
-                if (isAutoNextRowOn) {
-                  await autoFillRows();
-                } else {
-                  final selectedProduct =
-                      await showModalBottomSheet<Productclass>(
-                        context: context,
-                        isScrollControlled: true,
-                        builder: (_) => Productbottomsheet(),
-                      );
+                final bool isReselect = row.product != null;
 
-                  if (selectedProduct != null) {
-                    row.product = selectedProduct;
-                    row.isPromo = selectedProduct.isPromo;
-                    row.otherQty = selectedProduct.isPromo
-                        ? selectedProduct.otherQty
-                        : 0;
-                    row.qty = 0;
+                // 🟢 AUTO FILL — ONLY FOR EMPTY ROW
+                if (isAutoNextRowOn && !isReselect) {
+                  await autoFillRows(onUpdate);
+                  return;
+                }
 
-                    if (row == rows.last) addEmptyRow();
+                // 🟡 PRODUCT SELECTION (initial OR reselect)
+                final selectedProduct =
+                    await showModalBottomSheet<Productclass>(
+                      context: context,
+                      barrierColor: Colors.black.withOpacity(0.0),
+                      isScrollControlled: true,
+                      builder: (_) => Productbottomsheet(),
+                    );
 
-                    if (!row.isPromo) {
-                      final qty = await showModalBottomSheet<int>(
-                        context: context,
-                        builder: (_) =>
-                            Qtybottomsheet(stock: row.product!.stock),
-                      );
-                      if (qty != null) row.qty = qty;
-                    }
+                // ❌ User closed bottomsheet
+                if (selectedProduct == null) return;
+
+                // ✅ APPLY PRODUCT
+                row.product = selectedProduct;
+                row.isPromo = selectedProduct.isPromo;
+                row.otherQty = selectedProduct.isPromo
+                    ? selectedProduct.otherQty
+                    : 0;
+                row.qty = 0;
+                onUpdate();
+
+                // 📦 QTY BOTTOMSHEET
+                if (!row.isPromo) {
+                  final qty = await showModalBottomSheet<int>(
+                    context: context,
+                    barrierColor: Colors.black.withOpacity(0.0),
+                    builder: (_) => Qtybottomsheet(stock: row.product!.stock),
+                  );
+
+                  if (qty != null) {
+                    row.qty = qty;
+                    onUpdate();
                   }
                 }
-                onUpdate();
+
+                // ➕ ALWAYS CONTINUE AUTO NEXT ROW
+                if (isAutoNextRowOn) {
+                  if (row == rows.last) {
+                    addEmptyRow();
+                    onUpdate();
+                  }
+
+                  // 🔹 AUTO FOCUS: scroll to last row
+                  Future.delayed(Duration(milliseconds: 100), () {
+                    Scrollable.ensureVisible(
+                      context, // provide the row context here
+                      duration: Duration(milliseconds: 300),
+                      alignment: 0.5,
+                    );
+                  });
+                }
               },
+
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
