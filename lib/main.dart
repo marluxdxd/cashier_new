@@ -14,12 +14,6 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SupabaseConfig.initialize();
   await LocalDatabase().database;
-
-//--------DELETE DB---------------
-
-// final dbPath = await getDatabasesPath();
-// final path = join(dbPath, 'app.db');
-// await deleteDatabase(path); // deletes existing DB
  final localDb = LocalDatabase();
 
   // Tan-awa tanan transactions sa local DB

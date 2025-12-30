@@ -22,35 +22,49 @@ class _DebugDbScreenState extends State<DebugDbScreen> {
   }
 
   Future<void> loadTables() async {
-    setState(() {
-      isLoading = true;
-    });
+  setState(() {
+    isLoading = true;
+  });
 
-    try {
-      final names = await db.getAllTableNames();
-      Map<String, List<Map<String, dynamic>>> rows = {};
+  try {
+    
+    final names = await db.getAllTableNames();
+    Map<String, List<Map<String, dynamic>>> rows = {};
 
-      for (var table in names) {
-        final tableData = await db.getAllRows(table);
-        rows[table] = tableData;
-      }
+    for (var table in names) {
+      final tableData = await db.getAllRows(table);
+      rows[table] = tableData;
 
-      if (!mounted) return;
+      // 🔹 Special handling for tables with is_synced
+      if (table == 'transaction_items' ||
+          table == 'transactions' ||
+          table == 'product_stock_history' ||
+          table == 'stock_update_queue') {
+        rows['${table}_unsynced'] =
+            tableData.where((e) => e['is_synced'] == 0).toList();
 
-      setState(() {
-        tableNames = names;
-        tableRows = rows;
-      });
-    } catch (e) {
-      print("Error loading tables: $e");
-    } finally {
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
+        rows['${table}_synced'] =
+            tableData.where((e) => e['is_synced'] == 1).toList();
       }
     }
+
+    if (!mounted) return;
+
+    setState(() {
+      tableNames = rows.keys.toList();
+      tableRows = rows;
+    });
+  } catch (e) {
+    print("Error loading tables: $e");
+  } finally {
+    if (mounted) {
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
+}
+
 
   Widget buildDataTable(String tableName) {
     final rows = tableRows[tableName] ?? [];

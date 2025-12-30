@@ -316,17 +316,17 @@ CREATE TABLE transaction_items(
   }
 
   // ------------------- DELETE ITEMS FOR A SPECIFIC TRANSACTION ------------------- //
-  Future<void> deleteItemsByTransaction(int transactionId) async {
-    // 🔑 Get database instance
-    final db = await database;
+  // Future<void> deleteItemsByTransaction(int transactionId) async {
+  //   // 🔑 Get database instance
+  //   final db = await database;
 
-    // ✅ Delete all items linked to the given transaction ID
-    await db.delete(
-      'transaction_items',
-      where: 'transaction_id = ?',
-      whereArgs: [transactionId],
-    );
-  }
+  //   // ✅ Delete all items linked to the given transaction ID
+  //   await db.delete(
+  //     'transaction_items',
+  //     where: 'transaction_id = ?',
+  //     whereArgs: [transactionId],
+  //   );
+  // }
 
   // ------------------- GET TRANSACTIONS WITH ITEMS FILTERED BY DATE RANGE ------------------- //
   Future<List<Map<String, dynamic>>> getTransactionsWithItemsFiltered(
@@ -770,15 +770,15 @@ CREATE TABLE transaction_items(
     return result;
   }
 
-  // 🔹 Delete a transaction item by ID
-  Future<int> deleteTransactionItem(int id) async {
-    final db = await database;
-    return await db.delete(
-      'transaction_items',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-  }
+  // // 🔹 Delete a transaction item by ID
+  // Future<int> deleteTransactionItem(int id) async {
+  //   final db = await database;
+  //   return await db.delete(
+  //     'transaction_items',
+  //     where: 'id = ?',
+  //     whereArgs: [id],
+  //   );
+  // }
 
   Future<void> insertStockHistory({
     required int transactionId, // ✅ ADD
