@@ -196,6 +196,28 @@ class _HomeState extends State<Home> {
                 ),
               ),
             ),
+ElevatedButton(
+  onPressed: () async {
+    final db = await LocalDatabase().database;
+
+    // Kuhaa ang latest 10 rows (or tanan rows)
+    final latestItems = await db.query(
+      'transaction_items',
+      orderBy: 'id DESC', // latest first
+      limit: 10,
+    );
+
+    if (latestItems.isEmpty) {
+      print("❌ No transaction_items found.");
+    } else {
+      print("🎉 Latest transaction_items:");
+      for (var item in latestItems) {
+        print(item); // <-- iprint tanan columns
+      }
+    }
+  },
+  child: Text("Print Latest transaction_items"),
+),
 
             IconButton(
               icon: const Icon(Icons.storage),

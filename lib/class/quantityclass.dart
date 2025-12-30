@@ -1,14 +1,14 @@
-  final List<int> num = [1, 2, 3, 4];
-  List<int> matchnum = [];
+//   final List<int> num = [1, 2, 3, 4];
+//   List<int> matchnum = [];
 
 
-class SelectedQty {
+// class SelectedQty {
   
-  final int? qty;
+//   final int? qty;
 
 
 
-  SelectedQty({ required this.qty});
+//   SelectedQty({ required this.qty});
 
 
-}
+// }

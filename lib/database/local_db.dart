@@ -197,8 +197,7 @@ CREATE TABLE transaction_items(
   is_synced INTEGER DEFAULT 0,
   supabase_id INTEGER,
   product_client_uuid text NOT NULL,
-  FOREIGN KEY(transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
-  FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE,
+
   UNIQUE(transaction_id, product_id, product_client_uuid)
 )
 ''');
@@ -696,7 +695,7 @@ CREATE TABLE transaction_items(
 
   // ------------------- TRANSACTION ITEMS CRUD ------------------- //
   // 🔹 Insert a new transaction item (replace if ID exists)
-  Future<int> insertTransactionItem({
+Future<int> insertTransactionItem({
   required int id,
   required int transactionId,
   required int productId,
@@ -739,6 +738,20 @@ CREATE TABLE transaction_items(
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+
+    // ✅ QUERY BACK THE INSERTED ROW
+    final insertedRow = await db.query(
+      'transaction_items',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    if (insertedRow.isNotEmpty) {
+      print("🎉 VERIFIED: Row successfully inserted into transaction_items!");
+      print("➡️ Row data: ${insertedRow.first}");
+    } else {
+      print("⚠️ WARNING: Row NOT found in transaction_items after insert!");
+    }
 
     print("✅ LOCAL INSERT SUCCESSFUL (transaction_items)");
     print("➡️ sqlite row id: $result");
