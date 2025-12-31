@@ -711,7 +711,7 @@ Future<int> insertTransactionItem({
 
   try {
     print("🟡 INSERTING transaction_items:");
- 
+
     print("  transaction_id: $transactionId");
     print("  product_id: $productId");
     print("  product_name: $productName");
@@ -725,7 +725,7 @@ Future<int> insertTransactionItem({
     final result = await db.insert(
       'transaction_items',
       {
-       
+    
         'transaction_id': transactionId,
         'product_id': productId,
         'product_name': productName,
@@ -743,7 +743,7 @@ Future<int> insertTransactionItem({
     final insertedRow = await db.query(
       'transaction_items',
       where: 'id = ?',
- 
+      whereArgs: [result],
     );
 
     if (insertedRow.isNotEmpty) {

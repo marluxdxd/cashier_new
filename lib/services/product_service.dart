@@ -652,7 +652,7 @@ class ProductService {
       final supaItems = await supabase.from('transaction_items').select();
       for (var item in supaItems) {
         await localDb.insertTransactionItem(
-          
+        
           transactionId: item['transaction_id'] as int,
           productId: item['product_id'] as int,
           productName: item['product_name'] as String,
@@ -881,7 +881,7 @@ class ProductService {
     required bool isPromo,
     required int otherQty,
   }) async {
-  
+    final id = generateUniqueId(prefix: "TI").hashCode.abs();
 
     return await localDb.insertTransactionItem(
 
