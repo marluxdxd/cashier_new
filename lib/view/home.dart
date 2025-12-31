@@ -275,7 +275,7 @@ ElevatedButton(
   ),
   onSubmitted: (_) async {
     if (isSyncingOnline) return;
-
+final double finalTotal = posManager.totalBill; // ✅ SAVE FIRST
     double cash = double.tryParse(customerCashController.text) ?? 0;
 
     if (!transactionService.isCashSufficient(posManager.totalBill, cash)) {
@@ -287,7 +287,7 @@ ElevatedButton(
 
     final bool online = await InternetConnectionChecker().hasConnection;
     final localDb = LocalDatabase();
-    double change = transactionService.calculateChange(posManager.totalBill, cash);
+    double change = transactionService.calculateChange(finalTotal, cash);
     String timestamp = getPhilippineTimestampFormatted();
 
     // ---------------- COMBINE SAME PRODUCTS ----------------
@@ -323,10 +323,11 @@ ElevatedButton(
     // ---------------- PROCESS TRANSACTION IN BACKGROUND ----------------
     unawaited(Future(() async {
       try {
+        
         final int localTransactionId = generateUniqueId(prefix: "T").hashCode.abs();
         await localDb.insertTransaction(
           id: localTransactionId,
-          total: posManager.totalBill,
+          total: finalTotal,
           cash: cash,
           change: change,
           createdAt: timestamp,
@@ -336,7 +337,7 @@ ElevatedButton(
         int onlineTransactionId = localTransactionId;
         if (online) {
           onlineTransactionId = await transactionService.saveTransaction(
-            total: posManager.totalBill,
+            total: finalTotal, // ✅
             cash: cash,
             change: change,
           );
@@ -350,7 +351,7 @@ ElevatedButton(
 
           await Future.wait([
             localDb.insertTransactionItem(
-              id: generateUniqueId(prefix: "TI").hashCode.abs(),
+          
               transactionId: localTransactionId,
               productId: product.id,
               productName: product.name,

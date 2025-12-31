@@ -696,7 +696,7 @@ CREATE TABLE transaction_items(
   // ------------------- TRANSACTION ITEMS CRUD ------------------- //
   // 🔹 Insert a new transaction item (replace if ID exists)
 Future<int> insertTransactionItem({
-  required int id,
+
   required int transactionId,
   required int productId,
   required String productName,
@@ -711,7 +711,7 @@ Future<int> insertTransactionItem({
 
   try {
     print("🟡 INSERTING transaction_items:");
-    print("  id: $id");
+ 
     print("  transaction_id: $transactionId");
     print("  product_id: $productId");
     print("  product_name: $productName");
@@ -725,7 +725,7 @@ Future<int> insertTransactionItem({
     final result = await db.insert(
       'transaction_items',
       {
-        'id': id,
+       
         'transaction_id': transactionId,
         'product_id': productId,
         'product_name': productName,
@@ -743,7 +743,7 @@ Future<int> insertTransactionItem({
     final insertedRow = await db.query(
       'transaction_items',
       where: 'id = ?',
-      whereArgs: [id],
+ 
     );
 
     if (insertedRow.isNotEmpty) {

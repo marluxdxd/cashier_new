@@ -1,9 +1,10 @@
 import 'package:cashier/view/all_products_screen.dart';
-import 'package:cashier/view/history_screen.dart';
+import 'package:cashier/view/history_stock_screen.dart';
 import 'package:cashier/view/home.dart';
 import 'package:cashier/view/reports_file/sales_reports_screen.dart';
 
 import 'package:cashier/view/stock_screnn.dart';
+import 'package:cashier/view/transaction_history.dart';
 import 'package:cashier/widget/addproduct.dart';
 import 'package:flutter/material.dart';
 
@@ -127,13 +128,25 @@ class _AppdrawerState extends State<Appdrawer> {
 
     ListTile(
   leading: Icon(Icons.history),
-  title: Text("History"),
+  title: Text("Stock History"),
   onTap: () {
     Navigator.pop(context);
     Navigator.push(
       context,
       MaterialPageRoute(
           builder: (context) => HistoryScreen()),
+    );
+  },
+),
+    ListTile(
+  leading: Icon(Icons.history),
+  title: Text("Trnasction History"),
+  onTap: () {
+    Navigator.pop(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (context) => TransactionHistoryScreen()),
     );
   },
 ),
