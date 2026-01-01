@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cashier/database/local_db.dart';
-
 import 'package:cashier/database/supabase.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
   const TransactionHistoryScreen({super.key});
 
   @override
-  State<TransactionHistoryScreen> createState() => _TransactionHistoryScreenState();
+  State<TransactionHistoryScreen> createState() =>
+      _TransactionHistoryScreenState();
 }
 
 class _TransactionHistoryScreenState extends State<TransactionHistoryScreen>
@@ -33,6 +33,16 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen>
     final txs = await db.query('transactions', orderBy: 'created_at DESC');
     if (!mounted) return;
     setState(() => localTransactions = txs);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchLocalTransactionItems(int txId) async {
+    final db = await LocalDatabase().database;
+    final items = await db.query(
+      'transaction_items',
+      where: 'transaction_id = ?',
+      whereArgs: [txId],
+    );
+    return List<Map<String, dynamic>>.from(items);
   }
 
   // ------------------- SERVER -------------------
@@ -76,6 +86,39 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen>
     return total;
   }
 
+  Widget buildTransactionCard(
+      {required int txId,
+      required double cash,
+      required double change,
+      required Future<List<Map<String, dynamic>>> itemsFuture}) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: itemsFuture,
+      builder: (_, snapshot) {
+        final items = snapshot.data ?? [];
+        final computedTotal = computeTotalFromItems(items);
+
+        return Card(
+          margin: const EdgeInsets.all(8),
+          child: ExpansionTile(
+            title: Text("Transaction #$txId - Total: ₱${computedTotal.toStringAsFixed(2)}"),
+            subtitle: Text("Cash: ₱${cash.toStringAsFixed(2)} | Change: ₱${change.toStringAsFixed(2)}"),
+            children: items.isEmpty
+                ? [const Padding(padding: EdgeInsets.all(8), child: Text("No items"))]
+                : items.map((item) {
+                    return ListTile(
+                      title: Text("${item['product_name']}"),
+                      subtitle: Text(
+                          "Qty: ${item['qty']} x ₱${(item['price'] as num).toStringAsFixed(2)}"),
+                      trailing: Text(
+                          "₱${((item['qty'] as int) * (item['price'] as num)).toStringAsFixed(2)}"),
+                    );
+                  }).toList(),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -99,18 +142,12 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen>
               itemCount: localTransactions.length,
               itemBuilder: (_, index) {
                 final tx = localTransactions[index];
-                return Card(
-                  margin: const EdgeInsets.all(8),
-                  child: ListTile(
-                    title: Text("Total: ₱${(tx['total'] as num).toStringAsFixed(2)}"),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text("Cash: ₱${(tx['cash'] as num).toStringAsFixed(2)} | Change: ₱${(tx['change'] as num).toStringAsFixed(2)}"),
-                        Text("Created at: ${tx['created_at']}"),
-                      ],
-                    ),
-                  ),
+                final txId = tx['id'] as int;
+                return buildTransactionCard(
+                  txId: txId,
+                  cash: (tx['cash'] as num).toDouble(),
+                  change: (tx['change'] as num).toDouble(),
+                  itemsFuture: fetchLocalTransactionItems(txId),
                 );
               },
             ),
@@ -125,23 +162,11 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen>
                 final tx = serverTransactions[index];
                 final txId = tx['id'] as int;
                 final items = serverTransactionItems[txId] ?? [];
-                final computedTotal = computeTotalFromItems(items);
-
-                return Card(
-                  margin: const EdgeInsets.all(8),
-                  child: ExpansionTile(
-                    title: Text("Transaction #$txId - Total: ₱${computedTotal.toStringAsFixed(2)}"),
-                    subtitle: Text("Cash: ₱${(tx['cash'] as num).toStringAsFixed(2)} | Change: ₱${(tx['change'] as num).toStringAsFixed(2)}"),
-                    children: items.isEmpty
-                        ? [const Padding(padding: EdgeInsets.all(8), child: Text("No items"))]
-                        : items.map((item) {
-                            return ListTile(
-                              title: Text("${item['product_name']}"),
-                              subtitle: Text("Qty: ${item['qty']} x ₱${(item['price'] as num).toStringAsFixed(2)}"),
-                              trailing: Text("₱${((item['qty'] as int) * (item['price'] as num)).toStringAsFixed(2)}"),
-                            );
-                          }).toList(),
-                  ),
+                return buildTransactionCard(
+                  txId: txId,
+                  cash: (tx['cash'] as num).toDouble(),
+                  change: (tx['change'] as num).toDouble(),
+                  itemsFuture: Future.value(items),
                 );
               },
             ),

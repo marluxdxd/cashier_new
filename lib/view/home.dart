@@ -12,6 +12,8 @@ import 'package:cashier/widget/qtybottomsheet.dart';
 import 'package:cashier/widget/sukli.dart';
 import 'package:cashier/widget/appdrawer.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 import 'dart:async';
 import '../class/pos_row_manager.dart';
 
@@ -197,26 +199,20 @@ class _HomeState extends State<Home> {
               ),
             ),
 ElevatedButton(
+  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
   onPressed: () async {
-    final db = await LocalDatabase().database;
+    // Reset LOCAL
+    final localDb = LocalDatabase();
+await localDb.resetLocalDatabase();
 
-    // Kuhaa ang latest 10 rows (or tanan rows)
-    final latestItems = await db.query(
-      'transaction_items',
-      orderBy: 'id DESC', // latest first
-      limit: 10,
+    // Reset ONLINE (Supabase)
+    await Supabase.instance.client.rpc('reset_all_transactions');
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Database reset successful")),
     );
-
-    if (latestItems.isEmpty) {
-      print("❌ No transaction_items found.");
-    } else {
-      print("🎉 Latest transaction_items:");
-      for (var item in latestItems) {
-        print(item); // <-- iprint tanan columns
-      }
-    }
   },
-  child: Text("Print Latest transaction_items"),
+  child: const Text("RESET ALL DATA"),
 ),
 
             IconButton(
@@ -324,24 +320,32 @@ final double finalTotal = posManager.totalBill; // ✅ SAVE FIRST
     unawaited(Future(() async {
       try {
         
-        final int localTransactionId = generateUniqueId(prefix: "T").hashCode.abs();
-        await localDb.insertTransaction(
-          id: localTransactionId,
-          total: finalTotal,
-          cash: cash,
-          change: change,
-          createdAt: timestamp,
-          isSynced: online ? 1 : 0,
-        );
+         final String clientUuid = const Uuid().v4();
 
-        int onlineTransactionId = localTransactionId;
-        if (online) {
-          onlineTransactionId = await transactionService.saveTransaction(
-            total: finalTotal, // ✅
-            cash: cash,
-            change: change,
-          );
-        }
+final int localTransactionId = await localDb.insertTransaction(
+  total: finalTotal,
+  cash: cash,
+  change: change,
+  createdAt: timestamp,
+  isSynced: online ? 1 : 0,
+  clientUuid: clientUuid,
+);
+
+       int? onlineTransactionId;
+
+if (online) {
+  onlineTransactionId = await transactionService.saveTransaction(
+    total: finalTotal,
+    cash: cash,
+    change: change,
+    clientUuid: clientUuid,
+  );
+
+  await localDb.updateTransactionSupabaseId(
+    localId: localTransactionId,
+    supabaseId: onlineTransactionId,
+  );
+}
 
         final futures = combinedItems.values.map((row) async {
           final product = row.product!;
@@ -389,7 +393,7 @@ final double finalTotal = posManager.totalBill; // ✅ SAVE FIRST
               qty: qtySold,
               type: 'SALE',
             ),
-            if (online)
+            if (online && onlineTransactionId != null)
               Future.wait([
                 productService.syncSingleProductOnline(product.id),
                 transactionService.saveTransactionItem(

@@ -28,36 +28,73 @@ class TransactionService {
   /////////////////////////////////////////////////////////////////////////
 
 // Fetch all transactions: merge local unsynced + online
-  Future<List<Map<String, dynamic>>> fetchAllTransactions() async {
-    // 1️⃣ Get local transactions (both synced and unsynced)
-    final localTransactions = await localDb.getAllTransactions();
+Future<List<Map<String, dynamic>>> fetchAllTransactions({
+  DateTime? startDate,
+  DateTime? endDate,
+}) async {
+  // 1️⃣ Get local transactions (both synced and unsynced)
+  final localTransactions = await localDb.getAllTransactions();
 
-    // 2️⃣ Get online transactions
-    List<Map<String, dynamic>> onlineTransactions = [];
-    try {
-      final data = await supabase
-          .from('transactions')
-          .select()
-          .order('created_at', ascending: false);
+  // Filter LOCAL by date
+  final filteredLocal = localTransactions.where((t) {
+    if (t['created_at'] == null) return false;
 
-      onlineTransactions = List<Map<String, dynamic>>.from(data as List<dynamic>);
-    } catch (e) {
-      print("Failed to fetch online transactions: $e");
+    final date = DateTime.parse(t['created_at']);
+
+    if (startDate != null && date.isBefore(startDate)) return false;
+    if (endDate != null &&
+        date.isAfter(endDate.add(const Duration(days: 1)))) {
+      return false;
     }
 
-    // 3️⃣ Merge local unsynced transactions with online
-    final merged = [
-      ...localTransactions,
-      ...onlineTransactions.where(
-        (o) => !localTransactions.any((l) => l['id'] == o['id']),
-      ),
-    ];
+    return true;
+  }).toList();
 
-    // Sort by timestamp descending
-    merged.sort((a, b) => (b['created_at'] ?? '').compareTo(a['created_at'] ?? ''));
+  // 2️⃣ Get online transactions
+  List<Map<String, dynamic>> onlineTransactions = [];
+  try {
+    var query = supabase.from('transactions').select();
 
-    return merged;
+    if (startDate != null) {
+      query = query.gte(
+        'created_at',
+        startDate.toIso8601String(),
+      );
+    }
+
+    if (endDate != null) {
+      query = query.lte(
+        'created_at',
+        endDate.add(const Duration(days: 1)).toIso8601String(),
+      );
+    }
+
+    final data = await query.order(
+      'created_at',
+      ascending: false,
+    );
+
+    onlineTransactions =
+        List<Map<String, dynamic>>.from(data as List<dynamic>);
+  } catch (e) {
+    print("Failed to fetch online transactions: $e");
   }
+
+  // 3️⃣ Merge local unsynced with online (no duplicates)
+  final merged = [
+    ...filteredLocal,
+    ...onlineTransactions.where(
+      (o) => !filteredLocal.any((l) => l['id'] == o['id']),
+    ),
+  ];
+
+  // 4️⃣ Sort by date DESC
+  merged.sort((a, b) =>
+      (b['created_at'] ?? '').compareTo(a['created_at'] ?? ''));
+
+  return merged;
+}
+
 
   // Fetch items for a specific transaction, local+online
   Future<List<Map<String, dynamic>>> fetchAllTransactionItems(int transactionId) async {
@@ -180,6 +217,7 @@ class TransactionService {
             'cash': trx['cash'],
             'change': trx['change'],
             'created_at': trx['created_at'],
+            'client_uuid': trx['client_uuid'],
           })
           .select()
           .single();
@@ -231,6 +269,9 @@ class TransactionService {
         where: 'id = ?',
         whereArgs: [trx['id']],
       );
+      
+      
+      
 
       print("✅ Transaction ${trx['id']} synced → Supabase ID $supaTransactionId");
     } catch (e) {
@@ -250,24 +291,26 @@ class TransactionService {
   }
 
   //---------------- Save Transaction Online ----------------
-  Future<int> saveTransaction({
-    required double total,
-    required double cash,
-    required double change,
-  }) async {
-    final response = await supabase
-        .from('transactions')
-        .insert({
-          'total': total,
-          'cash': cash,
-          'change': change,
-          'created_at': getPhilippineTimestamp(), // PHT timestamp
-        })
-        .select('id')
-        .single();
+Future<int> saveTransaction({
+  required double total,
+  required double cash,
+  required double change,
+  required String clientUuid,
+}) async {
+  final response = await supabase
+      .from('transactions')
+      .insert({
+        'total': total,
+        'cash': cash,
+        'change': change,
+        'client_uuid': clientUuid, // ✅ IMPORTANT
+        'created_at': getPhilippineTimestamp(),
+      })
+      .select('id')
+      .single();
 
-    return response['id'];
-  }
+  return response['id'];
+}
 
   //---------------- Save Transaction Item Online ----------------
   Future<void> saveTransactionItem({

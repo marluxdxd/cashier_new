@@ -153,7 +153,7 @@ class LocalDatabase {
     // Transactions table
     await db.execute('''
       CREATE TABLE transactions(
-        id INTEGER PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         total REAL NOT NULL,
         cash REAL NOT NULL,
         change REAL NOT NULL,
@@ -659,25 +659,67 @@ CREATE TABLE transaction_items(
 
   // ------------------- TRANSACTIONS CRUD ------------------- //
   // 🔹 Insert a new transaction (ignores conflict if ID exists)
-  Future<int> insertTransaction({
-    required int id,
-    required double total,
-    required double cash,
-    required double change,
-    String? createdAt,
-    int isSynced = 0, // default 0 = not synced
-  }) async {
-    final db = await database;
-    await db.insert('transactions', {
-      'id': id,
+
+  Future<bool> transactionExistsBySupabaseId(int supabaseId) async {
+  final db = await database;
+  final res = await db.query(
+    'transactions',
+    where: 'supabase_id = ?',
+    whereArgs: [supabaseId],
+    limit: 1,
+  );
+  return res.isNotEmpty;
+}
+
+Future<void> updateTransactionSupabaseId({
+  required int localId,
+  required int supabaseId,
+}) async {
+  final db = await database;
+
+  await db.update(
+    'transactions',
+    {
+      'supabase_id': supabaseId,
+      'is_synced': 1, // mark as synced
+    },
+    where: 'id = ?',
+    whereArgs: [localId],
+  );
+
+  print(
+    "✅ Transaction synced | localId=$localId supabaseId=$supabaseId",
+  );
+}
+
+
+Future<int> insertTransaction({
+  required double total,
+  required double cash,
+  required double change,
+  String? createdAt,
+  int isSynced = 0,
+  String? clientUuid,
+  int? supabaseId, // ✅ ADD THIS
+}) async {
+  final db = await database;
+
+  final int localId = await db.insert(
+    'transactions',
+    {
       'total': total,
       'cash': cash,
       'change': change,
-      'created_at': createdAt,
+      'created_at': createdAt ?? DateTime.now().toIso8601String(),
       'is_synced': isSynced,
-    }, conflictAlgorithm: ConflictAlgorithm.ignore);
-    return id; // return the transaction ID
-  }
+      'client_uuid': clientUuid,
+      'supabase_id': supabaseId, // ✅ SAVE SERVER ID
+    },
+    conflictAlgorithm: ConflictAlgorithm.ignore,
+  );
+
+  return localId; // ✅ LOCAL SQLITE ID
+}
 
   // 🔹 Fetch all transactions from local DB
   Future<List<Map<String, dynamic>>> getTransactions() async {
@@ -978,6 +1020,19 @@ Future<void> printAllTransactionItems() async {
       whereArgs: [id],
     );
   }
+  Future<void> resetLocalDatabase() async {
+  final db = await database;
+
+  await db.transaction((txn) async {
+    await txn.delete('product_stock_history');
+    await txn.delete('transaction_items');
+    await txn.delete('transactions');
+
+    // Reset AUTOINCREMENT counters
+    await txn.execute("DELETE FROM sqlite_sequence");
+  });
+}
+
 }
 
 

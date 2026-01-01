@@ -640,7 +640,7 @@ class ProductService {
       final supaTransactions = await supabase.from('transactions').select();
       for (var t in supaTransactions) {
         await localDb.insertTransaction(
-          id: t['id'] as int,
+   
           total: (t['total'] as num).toDouble(),
           cash: (t['cash'] as num).toDouble(),
           change: (t['change'] as num).toDouble(),
