@@ -5,7 +5,6 @@ import 'package:permission_handler/permission_handler.dart';
 
 class LocalDatabase {
   Database? _database;
-  DatabaseExecutor? _txn;
 
   static final LocalDatabase _instance = LocalDatabase._internal();
   factory LocalDatabase() => _instance;
