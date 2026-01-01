@@ -97,7 +97,7 @@ Future<List<Map<String, dynamic>>> fetchAllTransactions({
 
 
   // Fetch items for a specific transaction, local+online
-  Future<List<Map<String, dynamic>>> fetchAllTransactionItems(int transactionId) async {
+  Future<List<Map<String, dynamic>>> fetchAllTransactionItems(int transactionId, DateTime end) async {
     final localItems = await localDb.getTransactionItemsByTransactionId(transactionId);
 
     List<Map<String, dynamic>> onlineItems = [];
@@ -344,5 +344,25 @@ Future<int> saveTransaction({
         .from('products')
         .update({'stock': newStock})
         .eq('id', productId);
+  }
+
+   Future<List<Map<String, dynamic>>> fetchAllTransactionItems1() async {
+    // Join transaction_items with transactions to get created_at
+    final res = await supabase
+        .from('transaction_items')
+        .select('*, transaction:transactions(*)'); // fetch transaction data as nested object
+
+    if (res == null) return [];
+
+    // Convert to List<Map<String, dynamic>>
+    final items = List<Map<String, dynamic>>.from(res as List);
+    return items;
+  }
+
+  /// Fetch all transactions (optional)
+  Future<List<Map<String, dynamic>>> fetchAllTransactions1() async {
+    final res = await supabase.from('transactions').select('*');
+    if (res == null) return [];
+    return List<Map<String, dynamic>>.from(res as List);
   }
 }

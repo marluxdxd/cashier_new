@@ -18,7 +18,7 @@ class SalesNavigationScreen extends StatelessWidget {
             indicatorColor: Colors.red,
             tabs: const [
               Tab(icon: Icon(Icons.shopping_bag), text: "Monthly Sales"),
-              Tab(icon: Icon(Icons.payments), text: "All Payments"),
+              Tab(icon: Icon(Icons.calendar_today), text: "Set Date Sales"),
          
             ],
           ),
@@ -27,7 +27,7 @@ class SalesNavigationScreen extends StatelessWidget {
         body: const TabBarView(
           children: [
             SalesTab(),
-            PaymentsTab(),
+            SetSaleDateTab(),
           
           ],
         ),

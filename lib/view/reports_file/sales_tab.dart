@@ -38,12 +38,12 @@ class _SalesTabState extends State<SalesTab> {
     await loadMonths();
   }
 
-  // 🔹 LOAD FONTS (SUPPORTS ₱)
+  // 🔹 LOAD FONTS
   Future<void> loadFonts() async {
-    final regularData =
-        await rootBundle.load('assets/fonts/NotoSans-Regular.ttf');
-    final boldData =
-        await rootBundle.load('assets/fonts/NotoSans-Bold.ttf');
+    final regularData = await rootBundle.load(
+      'assets/fonts/NotoSans-Regular.ttf',
+    );
+    final boldData = await rootBundle.load('assets/fonts/NotoSans-Bold.ttf');
 
     setState(() {
       regularFont = pw.Font.ttf(regularData);
@@ -51,16 +51,15 @@ class _SalesTabState extends State<SalesTab> {
     });
   }
 
-  // 🔹 LOAD LOGO IMAGE
+  // 🔹 LOAD LOGO
   Future<void> loadLogo() async {
-    final logoData =
-        await rootBundle.load('assets/images/marhon.png');
+    final logoData = await rootBundle.load('assets/images/marhon.png');
     setState(() {
       logoBytes = logoData.buffer.asUint8List();
     });
   }
 
-  // 🔹 FETCH MONTHS
+  // 🔹 FETCH MONTHS FROM transactions
   Future<void> loadMonths() async {
     final res = await supabase
         .from('transactions')
@@ -86,28 +85,98 @@ class _SalesTabState extends State<SalesTab> {
     return DateFormat('MMMM yyyy').format(date);
   }
 
-  Future<List<Map<String, dynamic>>> fetchMonthlyItems(String month) async {
-    final res = await supabase.rpc(
-      'get_monthly_transaction_items',
-      params: {'month_param': month},
+  // 🔹 FETCH ALL TRANSACTIONS AND ITEMS
+  Future<List<Map<String, dynamic>>> fetchAllItemsMerged() async {
+    final itemsRes = await supabase.from('transaction_items').select('*');
+    final transactionsRes = await supabase.from('transactions').select('*');
+
+    final items = List<Map<String, dynamic>>.from(itemsRes as List);
+    final transactions = List<Map<String, dynamic>>.from(
+      transactionsRes as List,
     );
 
-    return List<Map<String, dynamic>>.from(res as List);
+    // Merge transaction data into items
+    final merged = items.map((item) {
+      final tx = transactions.firstWhere(
+        (t) => t['id'] == item['transaction_id'],
+        orElse: () => {},
+      );
+      item['transaction'] = tx;
+      return item;
+    }).toList();
+
+    return merged;
   }
 
-  // 🔹 GENERATE PDF
+  // 🔹 FILTER ITEMS BY MONTH
+  List<Map<String, dynamic>> filterItemsByMonth(
+    List<Map<String, dynamic>> allItems,
+    String month,
+  ) {
+    return allItems.where((item) {
+      final createdAt = item['transaction']?['created_at'];
+      if (createdAt == null) return false;
+      final itemMonth = DateFormat(
+        'yyyy-MM',
+      ).format(DateTime.parse(createdAt.toString()));
+      return itemMonth == month;
+    }).toList();
+  }
+
+  // 🔹 GENERATE PDF WITH COMPACT MONTHLY CHART
   Future<File> generateMonthlyPDF(
     String month,
-    List<Map<String, dynamic>> items,
+    List<Map<String, dynamic>> monthlyItems,
+    List<Map<String, dynamic>> allItems,
   ) async {
     final pdf = pw.Document();
 
-    final totalRevenue = items.fold<double>(
+    // Helper: format numbers without .00
+    String formatNumber(double value) {
+      if (value == value.roundToDouble()) {
+        return '${value.toInt()}';
+      } else {
+        return value.toStringAsFixed(2);
+      }
+    }
+
+    // Total revenue for selected month
+    final totalRevenue = monthlyItems.fold<double>(
       0,
-      (sum, i) => sum + (i['qty'] * (i['price'] as num).toDouble()),
+      (sum, i) => sum + ((i['qty'] as int) * (i['price'] as num).toDouble()),
     );
 
-    final maxQtySold = items.map((i) => i['qty'] as int).reduce((a, b) => a > b ? a : b);
+    // Chart: monthly totals for Jan–Dec
+    final monthOrder = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    Map<String, double> monthlyTotals = {for (var m in monthOrder) m: 0.0};
+
+    for (var item in allItems) {
+      final createdAt = item['transaction']?['created_at'];
+      if (createdAt == null) continue;
+      final m = DateFormat('MMM').format(DateTime.parse(createdAt.toString()));
+      if (monthlyTotals.containsKey(m)) {
+        final subtotal =
+            (item['qty'] as int) * (item['price'] as num).toDouble();
+        monthlyTotals[m] = monthlyTotals[m]! + subtotal;
+      }
+    }
+
+    final maxMonthlyRevenue = monthlyTotals.values.isNotEmpty
+        ? monthlyTotals.values.reduce((a, b) => a > b ? a : b)
+        : 1.0;
 
     pdf.addPage(
       pw.Page(
@@ -117,21 +186,19 @@ class _SalesTabState extends State<SalesTab> {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
+              // HEADER
               pw.Row(
                 crossAxisAlignment: pw.CrossAxisAlignment.center,
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  if (logoBytes != null) 
+                  if (logoBytes != null)
                     pw.Image(pw.MemoryImage(logoBytes!), width: 60),
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
                       pw.Text(
                         'Monthly Sales Report',
-                        style: pw.TextStyle(
-                          font: boldFont,
-                          fontSize: 22,
-                        ),
+                        style: pw.TextStyle(font: boldFont, fontSize: 22),
                       ),
                       pw.Text(
                         formatMonth(month),
@@ -142,6 +209,8 @@ class _SalesTabState extends State<SalesTab> {
                 ],
               ),
               pw.Divider(),
+
+              // REVENUE
               pw.Text(
                 'Total Revenue: ₱${totalRevenue.toStringAsFixed(2)}',
                 style: pw.TextStyle(font: regularFont),
@@ -151,12 +220,11 @@ class _SalesTabState extends State<SalesTab> {
                 style: pw.TextStyle(font: regularFont),
               ),
               pw.SizedBox(height: 20),
+
+              // PRODUCT TABLE
               pw.Text(
                 'Transaction Items',
-                style: pw.TextStyle(
-                  font: boldFont,
-                  fontSize: 18,
-                ),
+                style: pw.TextStyle(font: boldFont, fontSize: 18),
               ),
               pw.SizedBox(height: 10),
               pw.Table(
@@ -169,8 +237,9 @@ class _SalesTabState extends State<SalesTab> {
                 },
                 children: [
                   pw.TableRow(
-                    decoration:
-                        const pw.BoxDecoration(color: PdfColors.blueGrey100),
+                    decoration: const pw.BoxDecoration(
+                      color: PdfColors.blueGrey100,
+                    ),
                     children: [
                       tableHeader('Product'),
                       tableHeader('Qty'),
@@ -178,14 +247,16 @@ class _SalesTabState extends State<SalesTab> {
                       tableHeader('Subtotal'),
                     ],
                   ),
-                  ...items.map((i) {
+                  ...monthlyItems.map((i) {
                     final subtotal =
-                        i['qty'] * (i['price'] as num).toDouble();
+                        (i['qty'] as int) * (i['price'] as num).toDouble();
                     return pw.TableRow(
                       children: [
-                        tableCell(i['product_name']),
-                        tableCell(i['qty'].toString(),
-                            align: pw.TextAlign.right),
+                        tableCell(i['product_name'] ?? ''),
+                        tableCell(
+                          i['qty'].toString(),
+                          align: pw.TextAlign.right,
+                        ),
                         tableCell(
                           '₱${(i['price'] as num).toStringAsFixed(2)}',
                           align: pw.TextAlign.right,
@@ -198,8 +269,9 @@ class _SalesTabState extends State<SalesTab> {
                     );
                   }),
                   pw.TableRow(
-                    decoration:
-                        const pw.BoxDecoration(color: PdfColors.blueGrey200),
+                    decoration: const pw.BoxDecoration(
+                      color: PdfColors.blueGrey200,
+                    ),
                     children: [
                       tableHeader('TOTAL'),
                       pw.Container(),
@@ -212,33 +284,57 @@ class _SalesTabState extends State<SalesTab> {
                   ),
                 ],
               ),
-              pw.SizedBox(height: 20),
+
+              // COMPACT MONTHLY CHART
+              pw.SizedBox(height: 15),
               pw.Text(
-                'Product Sales Chart',
+                'Monthly Sales Chart',
                 style: pw.TextStyle(font: boldFont, fontSize: 18),
               ),
-              pw.SizedBox(height: 10),
-
-              // Drawing Bar Chart (Manually)
               pw.Container(
-                height: 200,
-                child: pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.start,
-                  children: items.map((item) {
-                    final qtySold = item['qty'] as int;
-                    final barWidth = 30.0;
-                    final maxHeight = 150.0;
-                    final barHeight = (qtySold / maxQtySold) * maxHeight;
-
-                    return pw.Padding(
-                      padding: const pw.EdgeInsets.only(right: 10),
-                      child: pw.Container(
-                        width: barWidth,
-                        height: barHeight,
-                        color: PdfColors.blue,
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.black, width: 1),
+                  borderRadius: const pw.BorderRadius.all(
+                    pw.Radius.circular(4),
+                  ),
+                ),
+                padding: const pw.EdgeInsets.all(4),
+                height: 100, // compact height
+                child: pw.Wrap(
+                  spacing: 4,
+                  alignment: pw.WrapAlignment.start,
+                  crossAxisAlignment: pw.WrapCrossAlignment.end,
+                  children: [
+                    for (var m in monthOrder)
+                      pw.Column(
+                        mainAxisAlignment: pw.MainAxisAlignment.end,
+                        children: [
+                          // Numeric label (hide zero)
+                          if (monthlyTotals[m]! > 0)
+                            pw.Text(
+                              formatNumber(monthlyTotals[m]!),
+                              style: pw.TextStyle(
+                                font: regularFont,
+                                fontSize: 7,
+                              ),
+                            ),
+                          if (monthlyTotals[m]! > 0) pw.SizedBox(height: 1),
+                          // Bar (height 0 if no sales)
+                          pw.Container(
+                            width: 10,
+                            height:
+                                (monthlyTotals[m]! / maxMonthlyRevenue) * 70,
+                            color: PdfColors.blue,
+                          ),
+                          pw.SizedBox(height: 2),
+                          // Month label
+                          pw.Text(
+                            m,
+                            style: pw.TextStyle(font: regularFont, fontSize: 6),
+                          ),
+                        ],
                       ),
-                    );
-                  }).toList(),
+                  ],
                 ),
               ),
             ],
@@ -277,9 +373,7 @@ class _SalesTabState extends State<SalesTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (isLoading) return const Center(child: CircularProgressIndicator());
 
     return ListView.builder(
       itemCount: availableMonths.length,
@@ -296,8 +390,13 @@ class _SalesTabState extends State<SalesTab> {
                 IconButton(
                   icon: const Icon(Icons.picture_as_pdf, color: Colors.red),
                   onPressed: () async {
-                    final items = await fetchMonthlyItems(month);
-                    final file = await generateMonthlyPDF(month, items);
+                    final allItems = await fetchAllItemsMerged();
+                    final monthlyItems = filterItemsByMonth(allItems, month);
+                    final file = await generateMonthlyPDF(
+                      month,
+                      monthlyItems,
+                      allItems,
+                    );
 
                     if (!mounted) return;
                     Navigator.push(
@@ -311,13 +410,17 @@ class _SalesTabState extends State<SalesTab> {
                 IconButton(
                   icon: const Icon(Icons.share, color: Colors.blue),
                   onPressed: () async {
-                    final items = await fetchMonthlyItems(month);
-                    final file = await generateMonthlyPDF(month, items);
-
-                    await Share.shareXFiles(
-                      [XFile(file.path)],
-                      text: 'Monthly Sales Report - ${formatMonth(month)}',
+                    final allItems = await fetchAllItemsMerged();
+                    final monthlyItems = filterItemsByMonth(allItems, month);
+                    final file = await generateMonthlyPDF(
+                      month,
+                      monthlyItems,
+                      allItems,
                     );
+
+                    await Share.shareXFiles([
+                      XFile(file.path),
+                    ], text: 'Monthly Sales Report - ${formatMonth(month)}');
                   },
                 ),
               ],
