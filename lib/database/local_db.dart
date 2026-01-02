@@ -1,7 +1,5 @@
-import 'dart:io';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 class LocalDatabase {
   Database? _database;
@@ -560,28 +558,6 @@ CREATE TABLE transaction_items(
   }
 
   // ------------------- DATABASE BACKUP ------------------- //
-  // 🔹 Copies local SQLite database to Android Downloads folder
-  Future<void> backupDatabaseToDownloads() async {
-    // 🔑 Request storage permission
-    if (await Permission.storage.request().isGranted) {
-      // 🔹 Get path to local database
-      final dbPath = await getDatabasesPath();
-      final dbFile = File(join(dbPath, 'app.db'));
-
-      // 🔹 Set backup path in Downloads folder
-      final downloadsDir = Directory(
-        '/storage/emulated/0/Download',
-      ); // Android downloads
-      final backupFile = File(join(downloadsDir.path, 'app_backup.db'));
-
-      // 🔹 Copy database to backup location
-      await dbFile.copy(backupFile.path);
-      print("Backup saved to Downloads: ${backupFile.path}");
-    } else {
-      // ❌ Permission denied
-      print("Storage permission denied");
-    }
-  }
 
   // ------------------------------- PRODUCTS CRUD -------------------------------------- //
   // 🔹 Insert a new product or update if exists

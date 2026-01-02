@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cashier/database/local_db.dart';
 import 'package:cashier/database/supabase.dart';
+import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:internet_connection_checker/internet_connection_checker.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
   const TransactionHistoryScreen({super.key});
@@ -11,6 +14,7 @@ class TransactionHistoryScreen extends StatefulWidget {
 }
 
 class _TransactionHistoryScreenState extends State<TransactionHistoryScreen>
+
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final supabase = SupabaseConfig.supabase;
@@ -18,22 +22,44 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen>
   List<Map<String, dynamic>> localTransactions = [];
   List<Map<String, dynamic>> serverTransactions = [];
   Map<int, List<Map<String, dynamic>>> serverTransactionItems = {}; // key: transaction_id
+StreamSubscription<ConnectivityResult>? _connectivitySub;
+StreamSubscription<InternetConnectionStatus>? _internetSub;
+@override
+void initState() {
+  super.initState();
+  _tabController = TabController(length: 2, vsync: this);
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    fetchLocalTransactions();
-    fetchServerTransactions();
-  }
+  fetchLocalTransactions();
+  fetchServerTransactions();
+
+  // 🔥 AUTO REFRESH WHEN INTERNET COMES BACK
+  _internetSub =
+      InternetConnectionChecker().onStatusChange.listen((status) async {
+    if (status == InternetConnectionStatus.connected) {
+      await fetchLocalTransactions();   // removes synced items
+      await fetchServerTransactions();  // loads server data
+    }
+  });
+}
+
+
 
   // ------------------- LOCAL -------------------
-  Future<void> fetchLocalTransactions() async {
-    final db = await LocalDatabase().database;
-    final txs = await db.query('transactions', orderBy: 'created_at DESC');
-    if (!mounted) return;
-    setState(() => localTransactions = txs);
-  }
+ Future<void> fetchLocalTransactions() async {
+  final db = await LocalDatabase().database;
+
+  // 🔥 SHOW ONLY OFFLINE TRANSACTIONS
+  final txs = await db.query(
+    'transactions',
+    where: 'is_synced = ?',
+    whereArgs: [0], // offline only
+    orderBy: 'created_at DESC',
+  );
+
+  if (!mounted) return;
+  setState(() => localTransactions = txs);
+}
+
 
   Future<List<Map<String, dynamic>>> fetchLocalTransactionItems(int txId) async {
     final db = await LocalDatabase().database;

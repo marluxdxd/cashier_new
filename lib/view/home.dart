@@ -30,7 +30,7 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-  bool isAutoNextRowOn = false; // default OFF
+  bool isAutoNextRowOn = true; // default OFF
   bool isSyncingOnline = false;
   bool syncSuccess = false;
   StreamSubscription<InternetConnectionStatus>? _listener;
@@ -137,26 +137,27 @@ class _HomeState extends State<Home> {
         elevation: 1.0,
         title: Text('Sari2x Store'),
         centerTitle: true,
-        actions: [
-          if (isSyncing)
-            const Padding(
-              padding: EdgeInsets.all(12),
-              child: CircularProgressIndicator(color: Colors.red),
-            )
-          else if (syncSuccess)
-            const Padding(
-              padding: EdgeInsets.all(12),
-              child: Icon(Icons.check_circle, color: Colors.green, size: 30),
-            ),
-          IconButton(
-            onPressed: () {},
-            icon: Icon(Icons.search, color: Colors.black, size: 30),
-          ),
-          IconButton(
-            onPressed: () {},
-            icon: Icon(Icons.notifications, color: Colors.black, size: 30),
-          ),
-        ],
+      actions: [
+  if (isSyncing)
+    Padding(
+      padding: EdgeInsets.all(12),
+      child: CircularProgressIndicator(color: Colors.red),
+    )
+  else if (syncSuccess)
+    Padding(
+      padding: EdgeInsets.all(12),
+      child: Icon(Icons.check_circle, color: Colors.green, size: 30),
+    ),
+  IconButton(
+    onPressed: () {},
+    icon: Icon(Icons.search, color: Colors.black, size: 30),
+  ),
+  IconButton(
+    onPressed: () {},
+    icon: Icon(Icons.notifications, color: Colors.black, size: 30),
+  ),
+],
+
       ),
       drawer: Appdrawer(),
       body: Padding(

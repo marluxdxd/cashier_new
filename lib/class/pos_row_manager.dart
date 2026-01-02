@@ -78,7 +78,7 @@ class POSRowManager {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
           // ================= PRODUCT =================
