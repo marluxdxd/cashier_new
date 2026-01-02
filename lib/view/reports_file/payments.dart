@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:cashier/utils.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -92,133 +93,133 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
     }).toList();
   }
 
-  // Generate single PDF for all items in range
-  Future<File> generatePDF(DateTime start, DateTime end) async {
-  final filteredItems = filterItemsByDate(start, end);
-  final pdf = pw.Document();
-
-  // Grand total
-  double grandTotal = filteredItems.fold(0.0, (sum, i) {
-    return sum + ((i['qty'] as num) * (i['price'] as num));
-  });
-
-  // Product sales totals for chart
-  final productTotals = <String, double>{};
-  for (var item in filteredItems) {
-    final product = item['product_name'] ?? 'Unknown';
-    final subtotal = (item['qty'] as num) * (item['price'] as num);
-    productTotals[product] = (productTotals[product] ?? 0) + subtotal;
+  // Convert UTC to PHT and format as "yyyy-MM-dd hh:mm a"
+  String formatToPHT(String? utcString) {
+    if (utcString == null) return '';
+    final utcTime = DateTime.parse(utcString).toUtc();
+    final phtTime = utcTime.add(const Duration(hours: 8));
+    return DateFormat('yyyy-MM-dd hh:mm a').format(phtTime);
   }
 
-  // Get max for scaling chart
-  final maxProductTotal = productTotals.values.isNotEmpty
-      ? productTotals.values.reduce((a, b) => a > b ? a : b)
-      : 1.0;
+  // Generate single PDF for all items in range
+  Future<File> generatePDF(DateTime start, DateTime end) async {
+    final filteredItems = filterItemsByDate(start, end);
+    final pdf = pw.Document();
 
-  pdf.addPage(
-    pw.MultiPage(
-      pageFormat: PdfPageFormat.a4,
-      margin: const pw.EdgeInsets.all(32),
-      build: (context) {
-        return [
-          pw.Text('Payments Report',
-              style: pw.TextStyle(font: boldFont, fontSize: 22)),
-          pw.SizedBox(height: 8),
-          pw.Text(
-            '${DateFormat('MMM dd, yyyy').format(start)} - ${DateFormat('MMM dd, yyyy').format(end)}',
-            style: pw.TextStyle(font: regularFont),
-          ),
-          pw.Divider(),
-          _buildTable(filteredItems),
-          pw.Divider(),
-          pw.Text(
-            'Grand Total: ₱${grandTotal.toStringAsFixed(2)}',
-            style: pw.TextStyle(font: boldFont, fontSize: 14),
-          ),
-          pw.SizedBox(height: 20),
+    // Grand total
+    double grandTotal = filteredItems.fold(0.0, (sum, i) {
+      return sum + ((i['qty'] as num) * (i['price'] as num));
+    });
 
-          // Product Sales Chart
-      pw.Column(
-  crossAxisAlignment: pw.CrossAxisAlignment.start,
-  children: [
-    // Chart Title
-  
-    pw.SizedBox(height: 12),
-  pw.Text(
-      'Product Sales Chart',
-      style: pw.TextStyle(font: boldFont, fontSize: 16),
-    ),
-    // Chart Container with border and background
-    pw.Container(
-      padding: const pw.EdgeInsets.all(8),
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey800, width: 1),
-        borderRadius: pw.BorderRadius.circular(4),
-        color: PdfColors.grey200, // subtle background
-      ),
-      height: 150,
-      child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.end,
-        mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly, // evenly space bars
-        children: productTotals.entries.map((entry) {
-          final barHeight = (entry.value / maxProductTotal) * 100;
+    // Product sales totals for chart
+    final productTotals = <String, double>{};
+    for (var item in filteredItems) {
+      final product = item['product_name'] ?? 'Unknown';
+      final subtotal = (item['qty'] as num) * (item['price'] as num);
+      productTotals[product] = (productTotals[product] ?? 0) + subtotal;
+    }
 
-          return pw.Column(
-            mainAxisAlignment: pw.MainAxisAlignment.end,
-            children: [
-              // Bar with rounded corners
-              pw.Container(
-                width: 24,
-                height: barHeight,
-                decoration: pw.BoxDecoration(
-                  color: PdfColors.blue,
-                  borderRadius: pw.BorderRadius.circular(4),
-                  border: pw.Border.all(color: PdfColors.grey700, width: 0.5),
+    // Get max for scaling chart
+    final maxProductTotal = productTotals.values.isNotEmpty
+        ? productTotals.values.reduce((a, b) => a > b ? a : b)
+        : 1.0;
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        build: (context) {
+          return [
+            pw.Text('Payments Report',
+                style: pw.TextStyle(font: boldFont, fontSize: 22)),
+            pw.SizedBox(height: 8),
+            pw.Text(
+              '${DateFormat('MMM dd, yyyy').format(start)} - ${DateFormat('MMM dd, yyyy').format(end)}',
+              style: pw.TextStyle(font: regularFont),
+            ),
+            pw.Divider(),
+            _buildTable(filteredItems),
+            pw.Divider(),
+            pw.Text(
+              'Grand Total: ₱${grandTotal.toStringAsFixed(2)}',
+              style: pw.TextStyle(font: boldFont, fontSize: 14),
+            ),
+            pw.SizedBox(height: 20),
+
+            // Product Sales Chart
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.SizedBox(height: 12),
+                pw.Text(
+                  'Product Sales Chart',
+                  style: pw.TextStyle(font: boldFont, fontSize: 16),
                 ),
-              ),
-              pw.SizedBox(height: 6),
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(8),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: PdfColors.grey800, width: 1),
+                    borderRadius: pw.BorderRadius.circular(4),
+                    color: PdfColors.grey200,
+                  ),
+                  height: 150,
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
+                    children: productTotals.entries.map((entry) {
+                      final barHeight = (entry.value / maxProductTotal) * 100;
 
-              // Label
-              pw.Container(
-                width: 28,
-                child: pw.Text(
-                  entry.key,
-                  style: pw.TextStyle(font: regularFont, fontSize: 8),
-                  textAlign: pw.TextAlign.center,
+                      return pw.Column(
+                        mainAxisAlignment: pw.MainAxisAlignment.end,
+                        children: [
+                          pw.Container(
+                            width: 24,
+                            height: barHeight,
+                            decoration: pw.BoxDecoration(
+                              color: PdfColors.blue,
+                              borderRadius: pw.BorderRadius.circular(4),
+                              border: pw.Border.all(color: PdfColors.grey700, width: 0.5),
+                            ),
+                          ),
+                          pw.SizedBox(height: 6),
+                          pw.Container(
+                            width: 28,
+                            child: pw.Text(
+                              entry.key,
+                              style: pw.TextStyle(font: regularFont, fontSize: 8),
+                              textAlign: pw.TextAlign.center,
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
                 ),
-              ),
-            ],
-          );
-        }).toList(),
+              ],
+            )
+          ];
+        },
       ),
-    ),
-  ],
-)
+    );
 
-        ];
-      },
-    ),
-  );
-
-  final dir = await getApplicationDocumentsDirectory();
-  final file = File(
-      '${dir.path}/payments_${DateFormat('yyyyMMdd').format(start)}_${DateFormat('yyyyMMdd').format(end)}.pdf');
-  await file.writeAsBytes(await pdf.save());
-  return file;
-}
-
+    final dir = await getApplicationDocumentsDirectory();
+    final file = File(
+        '${dir.path}/payments_${DateFormat('yyyyMMdd').format(start)}_${DateFormat('yyyyMMdd').format(end)}.pdf');
+    await file.writeAsBytes(await pdf.save());
+    return file;
+  }
 
   // Build table with transaction id, product, qty, price, subtotal, date
   pw.Widget _buildTable(List<Map<String, dynamic>> items) {
     return pw.Table(
       border: pw.TableBorder.all(color: PdfColors.grey300),
       columnWidths: {
-        0: const pw.FlexColumnWidth(2), // Transaction ID
-        1: const pw.FlexColumnWidth(3), // Product
-        2: const pw.FlexColumnWidth(1), // Qty
-        3: const pw.FlexColumnWidth(2), // Price
-        4: const pw.FlexColumnWidth(2), // Subtotal
-        5: const pw.FlexColumnWidth(2), // Date
+        0: const pw.FlexColumnWidth(2),
+        1: const pw.FlexColumnWidth(3),
+        2: const pw.FlexColumnWidth(1),
+        3: const pw.FlexColumnWidth(2),
+        4: const pw.FlexColumnWidth(2),
+        5: const pw.FlexColumnWidth(2),
       },
       children: [
         pw.TableRow(
@@ -238,12 +239,12 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
               _tableCell('${item['transaction']?['id'] ?? ''}'),
               _tableCell(item['product_name'] ?? ''),
               _tableCell('${item['qty']}', align: pw.TextAlign.right),
-              _tableCell('₱${(item['price'] as num).toStringAsFixed(2)}',
-                  align: pw.TextAlign.right),
+              _tableCell('₱${(item['price'] as num).toStringAsFixed(2)}', align: pw.TextAlign.right),
               _tableCell(
                   '₱${((item['qty'] as num) * (item['price'] as num)).toStringAsFixed(2)}',
                   align: pw.TextAlign.right),
-              _tableCell(item['transaction']?['created_at']?.toString().split(' ')[0] ?? ''),
+              _tableCell(formatToPHT(item['transaction']?['created_at']?.toString())),
+
             ],
           ),
       ],
@@ -253,16 +254,14 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
   pw.Widget _tableHeader(String text, {pw.TextAlign align = pw.TextAlign.left}) {
     return pw.Padding(
       padding: const pw.EdgeInsets.all(6),
-      child: pw.Text(text,
-          style: pw.TextStyle(font: boldFont), textAlign: align),
+      child: pw.Text(text, style: pw.TextStyle(font: boldFont), textAlign: align),
     );
   }
 
   pw.Widget _tableCell(String text, {pw.TextAlign align = pw.TextAlign.left}) {
     return pw.Padding(
       padding: const pw.EdgeInsets.all(6),
-      child: pw.Text(text,
-          style: pw.TextStyle(font: regularFont), textAlign: align),
+      child: pw.Text(text, style: pw.TextStyle(font: regularFont), textAlign: align),
     );
   }
 
@@ -374,8 +373,7 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.picture_as_pdf,
-                                  color: Colors.red),
+                              icon: const Icon(Icons.picture_as_pdf, color: Colors.red),
                               onPressed: () async {
                                 final file = await generatePDF(start, end);
                                 if (!mounted) return;

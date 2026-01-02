@@ -327,7 +327,7 @@ final int localTransactionId = await localDb.insertTransaction(
   total: finalTotal,
   cash: cash,
   change: change,
-  createdAt: timestamp,
+  createdAt: getPhilippineTimestampFormatted(),
   isSynced: online ? 1 : 0,
   clientUuid: clientUuid,
 );
