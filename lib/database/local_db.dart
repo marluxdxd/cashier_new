@@ -128,6 +128,8 @@ class LocalDatabase {
         id INTEGER PRIMARY KEY,
         name TEXT NOT NULL,
         price REAL NOT NULL,
+        cost_price REAL DEFAULT 0,
+        retail_price REAL DEFAULT price,
         stock INTEGER NOT NULL,
         is_promo INTEGER DEFAULT 0,
         other_qty INTEGER DEFAULT 0,
@@ -995,6 +997,7 @@ Future<void> printAllTransactionItems() async {
       whereArgs: [id],
     );
   }
+  
   Future<void> resetLocalDatabase() async {
   final db = await database;
 
@@ -1002,12 +1005,29 @@ Future<void> printAllTransactionItems() async {
     await txn.delete('product_stock_history');
     await txn.delete('transaction_items');
     await txn.delete('transactions');
+    await txn.delete('products');
 
     // Reset AUTOINCREMENT counters
     await txn.execute("DELETE FROM sqlite_sequence");
   });
 }
+//UI
+// ElevatedButton(
+//   style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+//   onPressed: () async {
+//     // Reset LOCAL
+//     final localDb = LocalDatabase();
+// await localDb.resetLocalDatabase();
 
+//     // Reset ONLINE (Supabase)
+//     await Supabase.instance.client.rpc('reset_all_transactions');
+
+//     ScaffoldMessenger.of(context).showSnackBar(
+//       const SnackBar(content: Text("Database reset successful")),
+//     );
+//   },
+//   child: const Text("RESET ALL DATA"),
+// ),
 }
 
 

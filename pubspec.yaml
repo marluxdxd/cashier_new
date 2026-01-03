@@ -82,7 +82,6 @@ flutter:
   assets:
     - assets/icons/
     - assets/images/
-    - assets/product/
     - assets/fonts/
     - assets/fonts/NotoSans-Regular.ttf
     - assets/fonts/NotoSans-Bold.ttf

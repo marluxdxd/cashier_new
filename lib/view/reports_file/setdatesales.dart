@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:cashier/pdf/view_pdf_screen2.dart';
 import 'package:cashier/utils.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -380,7 +381,7 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => ViewPDFScreen(pdfFile: file),
+                                    builder: (_) => ViewPDFScreen2(pdfFile: file),
                                   ),
                                 );
                               },

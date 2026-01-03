@@ -368,6 +368,7 @@ class ProductService {
   Future<int> insertProductOffline({
     required String name,
     required double price,
+    required double costPrice,
     required int stock,
     bool isPromo = false,
     int otherQty = 0,
@@ -382,6 +383,7 @@ class ProductService {
       'id': generateUniqueId(prefix: "T").hashCode.abs(),
       'name': name,
       'price': price,
+      'cost_price': costPrice,
       'stock': stock,
       'is_promo': isPromo ? 1 : 0,
       'other_qty': otherQty,

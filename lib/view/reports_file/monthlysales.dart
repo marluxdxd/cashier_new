@@ -9,14 +9,14 @@ import 'package:flutter/services.dart';
 import 'package:cashier/pdf/view_pdf_screen.dart';
 import 'package:share_plus/share_plus.dart';
 
-class SalesTab extends StatefulWidget {
-  const SalesTab({super.key});
+class MonthlySales extends StatefulWidget {
+  const MonthlySales({super.key});
 
   @override
-  State<SalesTab> createState() => _SalesTabState();
+  State<MonthlySales> createState() => _MonthlySalesState();
 }
 
-class _SalesTabState extends State<SalesTab> {
+class _MonthlySalesState extends State<MonthlySales> {
   final supabase = Supabase.instance.client;
 
   List<String> availableMonths = [];

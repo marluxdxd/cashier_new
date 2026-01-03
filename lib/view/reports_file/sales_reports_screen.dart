@@ -1,5 +1,5 @@
-import 'package:cashier/view/reports_file/payments.dart';
-import 'package:cashier/view/reports_file/sales_tab.dart';
+import 'package:cashier/view/reports_file/setdatesales.dart';
+import 'package:cashier/view/reports_file/monthlysales.dart';
 import 'package:flutter/material.dart';
 
 class SalesNavigationScreen extends StatelessWidget {
@@ -26,7 +26,7 @@ class SalesNavigationScreen extends StatelessWidget {
 
         body: const TabBarView(
           children: [
-            SalesTab(),
+            MonthlySales(),
             SetSaleDateTab(),
           
           ],

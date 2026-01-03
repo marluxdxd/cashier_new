@@ -11,6 +11,7 @@ class AddProductPage extends StatefulWidget {
 class _AddProductPageState extends State<AddProductPage> {
   final nameController = TextEditingController();
   final priceController = TextEditingController();
+  final costPriceController = TextEditingController();
   final stockController = TextEditingController();
   final promoQtyController = TextEditingController();
 
@@ -25,6 +26,7 @@ class _AddProductPageState extends State<AddProductPage> {
   void saveProduct() async {
     final name = nameController.text.trim();
     final price = double.tryParse(priceController.text.trim()) ?? 0;
+    final costPrice = double.tryParse(costPriceController.text.trim()) ?? 0;
     final stock = int.tryParse(stockController.text.trim()) ?? 0;
     otherQty = int.tryParse(promoQtyController.text.trim()) ?? 0;
     // Check internet connectivity
@@ -64,6 +66,7 @@ class _AddProductPageState extends State<AddProductPage> {
       final localId = await productService.insertProductOffline(
         name: name,
         price: price,
+        costPrice: costPrice,
         stock: stock,
         isPromo: isPromo,
         otherQty: otherQty,
@@ -142,6 +145,11 @@ class _AddProductPageState extends State<AddProductPage> {
               controller: priceController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: "Price"),
+            ),
+                 TextField(
+              controller: costPriceController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: "Cost Price"),
             ),
             TextField(
               controller: stockController,
