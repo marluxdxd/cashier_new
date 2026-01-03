@@ -143,7 +143,7 @@ class _MonthlySalesState extends State<MonthlySales> {
     // Total revenue for selected month
     final totalRevenue = monthlyItems.fold<double>(
       0,
-      (sum, i) => sum + ((i['qty'] as int) * (i['price'] as num).toDouble()),
+      (sum, i) => sum + ((i['qty'] as int) * (i['retail_price'] as num).toDouble()),
     );
 
     // Chart: monthly totals for Jan–Dec
@@ -169,7 +169,7 @@ class _MonthlySalesState extends State<MonthlySales> {
       final m = DateFormat('MMM').format(DateTime.parse(createdAt.toString()));
       if (monthlyTotals.containsKey(m)) {
         final subtotal =
-            (item['qty'] as int) * (item['price'] as num).toDouble();
+            (item['qty'] as int) * (item['retail_price'] as num).toDouble();
         monthlyTotals[m] = monthlyTotals[m]! + subtotal;
       }
     }
@@ -249,7 +249,7 @@ class _MonthlySalesState extends State<MonthlySales> {
                   ),
                   ...monthlyItems.map((i) {
                     final subtotal =
-                        (i['qty'] as int) * (i['price'] as num).toDouble();
+                        (i['qty'] as int) * (i['retail_price'] as num).toDouble();
                     return pw.TableRow(
                       children: [
                         tableCell(i['product_name'] ?? ''),
@@ -258,7 +258,7 @@ class _MonthlySalesState extends State<MonthlySales> {
                           align: pw.TextAlign.right,
                         ),
                         tableCell(
-                          '₱${(i['price'] as num).toStringAsFixed(2)}',
+                          '₱${(i['retail_price'] as num).toStringAsFixed(2)}',
                           align: pw.TextAlign.right,
                         ),
                         tableCell(

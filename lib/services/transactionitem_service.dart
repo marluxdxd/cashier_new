@@ -43,6 +43,8 @@ class TransactionItemService {
         'product_name': item.productName,
         'qty': item.qty,
         'price': item.price,
+        'cost_price': item.costPrice,
+        'retail_price': item.retailPrice,
         'is_promo': item.isPromo ? 1 : 0,
         'other_qty': item.otherQty,
         'is_synced': 0,

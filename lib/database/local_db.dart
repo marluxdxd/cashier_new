@@ -191,6 +191,8 @@ CREATE TABLE transaction_items(
   product_name TEXT NOT NULL,
   qty INTEGER NOT NULL,
   price REAL NOT NULL,
+  cost_price REAL DEFAULT 0,
+  retail_price REAL DEFAULT price,
   is_promo INTEGER DEFAULT 0,
   other_qty INTEGER,
   is_synced INTEGER DEFAULT 0,
@@ -243,6 +245,8 @@ CREATE TABLE transaction_items(
       ti.product_name,
       ti.qty,
       ti.price
+      ti.retail_price
+      ti.cost_price,
     FROM transaction_items ti
     JOIN transactions t ON ti.transaction_id = t.id
     WHERE strftime('%Y-%m', t.created_at) = ?
@@ -347,6 +351,8 @@ CREATE TABLE transaction_items(
       ti.product_name,
       ti.qty,
       ti.price,
+      ti.retail_price,
+      ti.cost_price,
       ti.is_promo,
       ti.other_qty
     FROM transactions t
@@ -404,7 +410,7 @@ CREATE TABLE transaction_items(
     // ✅ Query transaction items with joined product info and transaction totals
     return await db.rawQuery(
       '''
-    SELECT ti.id as item_id, ti.transaction_id, ti.qty, ti.price, ti.is_promo, 
+    SELECT ti.id as item_id, ti.transaction_id, ti.qty, ti.price,ti.retail_price,ti.cost_price, ti.is_promo, 
            p.name as product_name, t.total, t.cash, t.change, t.created_at
     FROM transaction_items ti
     INNER JOIN transactions t ON t.id = ti.transaction_id
@@ -567,10 +573,13 @@ CREATE TABLE transaction_items(
     required int id,
     required String name,
     required double price,
+    required double retailPrice,
+    required double costPrice, // <- add this
     required int stock,
     bool isPromo = false,
     int otherQty = 0,
-    String? clientUuid, // <- add this
+    String? clientUuid,
+    
   }) async {
     final db = await database;
     return await db.insert(
@@ -579,6 +588,8 @@ CREATE TABLE transaction_items(
         'id': id,
         'name': name,
         'price': price,
+        'retail_price': retailPrice,
+        'cost_price': costPrice,
         'stock': stock,
         'is_promo': isPromo ? 1 : 0,
         'other_qty': otherQty,
@@ -615,6 +626,8 @@ CREATE TABLE transaction_items(
     required int id,
     required int stock,
     double? price,
+    double? retailPrice,
+    double? costPrice,
     bool? isPromo,
     int? otherQty,
   }) async {
@@ -624,6 +637,8 @@ CREATE TABLE transaction_items(
       {
         'stock': stock,
         'price': price,
+        'retail_price': retailPrice,
+        'cost_price': costPrice,
         'is_promo': isPromo == true ? 1 : 0,
         'other_qty': otherQty ?? 0,
         'is_synced': 0, // mark as unsynced
@@ -721,6 +736,8 @@ Future<int> insertTransactionItem({
   required String productName,
   required int qty,
   required double price,
+  required double costPrice,
+  required double retailPrice,
   bool isPromo = false,
   int otherQty = 0,
   int isSynced = 0, // 0 = not synced, 1 = synced
@@ -736,6 +753,8 @@ Future<int> insertTransactionItem({
     print("  product_name: $productName");
     print("  qty: $qty");
     print("  price: $price");
+    print("  cost_price: $costPrice");
+    print("  retail_price: $retailPrice");
     print("  is_promo: ${isPromo ? 1 : 0}");
     print("  other_qty: $otherQty");
     print("  is_synced: $isSynced");
@@ -750,6 +769,8 @@ Future<int> insertTransactionItem({
         'product_name': productName,
         'qty': qty,
         'price': price,
+        'cost_price': costPrice,
+        'retail_price': retailPrice,
         'is_promo': isPromo ? 1 : 0,
         'other_qty': otherQty,
         'is_synced': isSynced,
@@ -871,9 +892,12 @@ Future<int> insertTransactionItem({
     required String clientUuid,
     required String name,
     required double price,
+    required double cost_price,
+    required double retail_price, 
     required int stock,
     required bool isPromo,
-    required int otherQty,
+    required int otherQty, 
+    
   }) async {
     final db = await database;
 
@@ -887,6 +911,8 @@ Future<int> insertTransactionItem({
       await db.insert('products', {
         'name': name,
         'price': price,
+        'cost_price': cost_price,
+        'retail_price': retail_price,
         'stock': stock,
         'is_promo': isPromo ? 1 : 0,
         'other_qty': otherQty,
@@ -899,6 +925,8 @@ Future<int> insertTransactionItem({
         {
           'name': name,
           'price': price,
+          'cost_price': cost_price,
+          'retail_price': retail_price,
           'stock': stock,
           'is_promo': isPromo ? 1 : 0,
           'other_qty': otherQty,
@@ -938,6 +966,8 @@ Future<void> printAllTransactionItems() async {
     required String productName,
     required int qty,
     required double price,
+    required double costPrice,
+    required double retailPrice,
     bool isPromo = false,
     int otherQty = 0,
   
@@ -956,6 +986,8 @@ Future<void> printAllTransactionItems() async {
         'product_name': productName,
         'qty': qty,
         'price': price,
+        'cost_price': costPrice,
+        'retail_price': retailPrice,
         'is_promo': isPromo ? 1 : 0,
         'other_qty': otherQty,
    

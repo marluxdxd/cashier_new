@@ -4,6 +4,8 @@ class Productclass {
   final int id;
   final String name;
   final double price;
+  final double retailPrice;
+  final double costPrice;
   int stock;
   final bool isPromo;
   final int otherQty;
@@ -14,6 +16,8 @@ class Productclass {
     required this.id,
     required this.name,
     required this.price,
+    required this.retailPrice,
+    required this.costPrice,
     required this.stock,
     required this.productClientUuid, // ✅ REQUIRED
     this.isPromo = false, // default false
@@ -27,6 +31,8 @@ class Productclass {
       'id': id,
       'name': name,
       'price': price,
+      'retail_price': retailPrice,
+      'cost_price': costPrice,
       'stock': stock,
       'is_promo': isPromo,
       'other_qty': otherQty,
@@ -43,6 +49,12 @@ class Productclass {
       price: map['price'] is int
           ? (map['price'] as int).toDouble()
           : map['price'],
+      retailPrice: map['retail_price'] is int
+          ? (map['retail_price'] as int).toDouble()
+          : map['retail_price'],
+      costPrice: map['cost_price'] is int
+          ? (map['cost_price'] as int).toDouble()
+          : map['cost_price'],
       stock: map['stock'],
       isPromo: map['is_promo'] ?? false,
       otherQty: map['other_qty'] ?? 0,

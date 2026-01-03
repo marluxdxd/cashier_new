@@ -107,7 +107,10 @@ void initState() {
     for (var item in items) {
       final qty = item['qty'] as int;
       final price = (item['price'] as num).toDouble();
+      final retailPrice = (item['retail_price'] as num).toDouble();
+
       total += qty * price;
+      total += qty * retailPrice;
     }
     return total;
   }
@@ -134,9 +137,9 @@ void initState() {
                     return ListTile(
                       title: Text("${item['product_name']}"),
                       subtitle: Text(
-                          "Qty: ${item['qty']} x ₱${(item['price'] as num).toStringAsFixed(2)}"),
+                          "Qty: ${item['qty']} x ₱${(item['retail_price'] as num).toStringAsFixed(2)}"),
                       trailing: Text(
-                          "₱${((item['qty'] as int) * (item['price'] as num)).toStringAsFixed(2)}"),
+                          "₱${((item['qty'] as int) * (item['retail_price'] as num)).toStringAsFixed(2)}"),
                     );
                   }).toList(),
           ),

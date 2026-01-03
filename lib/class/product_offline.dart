@@ -5,6 +5,8 @@ class ProductOffline {
   final int productId;
   final String? productName;
   final double? price;
+  final double? retailPrice;
+  final double? costPrice;
   final int? qty;
 
   final bool isPromo;
@@ -24,6 +26,8 @@ class ProductOffline {
     required this.productId,
     this.productName,
     this.price,
+    this.retailPrice,
+    this.costPrice,
     this.qty,
     this.total,
     this.cash,
@@ -41,6 +45,8 @@ class ProductOffline {
       'product_id': productId,
       'product_name': productName,
       'price': price,
+      'retail_price': retailPrice,
+      'cost_price': costPrice,
       'qty': qty,
       'is_promo': isPromo ? 1 : 0,
       'other_qty': otherQty,
@@ -58,6 +64,8 @@ class ProductOffline {
       productId: map['product_id'],
       productName: map['product_name'],
       price: (map['price'] as num?)?.toDouble(),
+      retailPrice: (map['retail_price'] as num?)?.toDouble(),
+      costPrice: (map['cost_price'] as num?)?.toDouble(),
       qty: map['qty'],
       isPromo: map['is_promo'] == 1,
       otherQty: map['other_qty'] ?? 0,

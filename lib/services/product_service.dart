@@ -70,7 +70,8 @@ class ProductService {
           id: productId,
           name: p['name'] as String,
           price: (p['price'] as num).toDouble(),
-
+          retailPrice: (p['retail_price'] as num).toDouble(),
+          costPrice: (p['cost_price'] as num).toDouble(),
           // ✅ PROTECT LOCAL STOCK
           stock: localStock ?? (p['stock'] as int),
 
@@ -98,6 +99,8 @@ class ProductService {
               id: e['id'],
               name: e['name'],
               price: e['price'],
+              retailPrice: e['retail_price'],
+              costPrice: e['cost_price'],
               stock: e['stock'],
               isPromo: e['is_promo'] == 1,
               productClientUuid: e['client_uuid'] as String,
@@ -229,6 +232,8 @@ class ProductService {
               .insert({
                 'name': productName,
                 'price': product['price'] ?? 0.0,
+                'cost_price': product['cost_price'] ?? 0.0,
+                'retail_price': product['retail_price'] ?? 0.0,
                 'stock': product['stock'] ?? 0,
                 'is_promo': product['is_promo'] == 1,
                 'other_qty': product['other_qty'] ?? 0,
@@ -323,6 +328,8 @@ class ProductService {
 
       final name = p['name']?.toString() ?? '';
       final price = (p['price'] as num).toDouble();
+      final costPrice = (p['cost_price'] as num).toDouble();
+      final retailPrice = (p['retail_price'] as num).toDouble();
       final stock = p['stock'] as int;
       final isPromo = (p['is_promo'] == 1);
       final otherQty = p['other_qty'] as int? ?? 0;
@@ -334,6 +341,8 @@ class ProductService {
             .update({
               'name': name,
               'price': price,
+              'cost_price': costPrice,
+              'retail_price': retailPrice,
               'stock': stock,
               'is_promo': isPromo,
               'other_qty': otherQty,
@@ -345,6 +354,8 @@ class ProductService {
         await supabase.from('products').insert({
           'name': name,
           'price': price,
+          'cost_price': costPrice,
+          'retail_price': retailPrice,
           'stock': stock,
           'is_promo': isPromo,
           'other_qty': otherQty,
@@ -369,6 +380,7 @@ class ProductService {
     required String name,
     required double price,
     required double costPrice,
+    required double retailPrice,
     required int stock,
     bool isPromo = false,
     int otherQty = 0,
@@ -384,6 +396,7 @@ class ProductService {
       'name': name,
       'price': price,
       'cost_price': costPrice,
+      'retail_price': retailPrice,
       'stock': stock,
       'is_promo': isPromo ? 1 : 0,
       'other_qty': otherQty,
@@ -446,6 +459,16 @@ class ProductService {
           : p['price'] is double
           ? p['price'] as double
           : 0.0;
+          final retailPrice = p['retail_price'] is int
+          ? (p['retail_price'] as int).toDouble()
+          : p['retail_price'] is double
+          ? p['retail_price'] as double
+          : 0.0;
+      final costPrice = p['cost_price'] is int
+          ? (p['cost_price'] as int).toDouble()
+          : p['cost_price'] is double
+          ? p['cost_price'] as double
+          : 0.0;
 
       final stock = p['stock'] is int ? p['stock'] as int : 0;
       final isPromo = (p['is_promo'] ?? 0) == 1;
@@ -466,6 +489,8 @@ class ProductService {
               .update({
                 'name': p['name'],
                 'price': price,
+                'cost_price': costPrice,
+                'retail_price': retailPrice,
                 'stock': stock,
                 'is_promo': isPromo,
                 'other_qty': otherQty,
@@ -477,6 +502,8 @@ class ProductService {
           await supabase.from('products').insert({
             'name': p['name'],
             'price': price,
+            'cost_price': costPrice,
+            'retail_price': retailPrice,
             'stock': stock,
             'is_promo': isPromo,
             'other_qty': otherQty,
@@ -541,6 +568,8 @@ class ProductService {
               .update({
                 'name': p['name'],
                 'price': p['price'],
+                'retail_price': p['retail_price'],
+                'cost_price': p['cost_price'],
                 'stock': p['stock'],
                 'is_promo': p['is_promo'] == 1,
                 'other_qty': p['other_qty'],
@@ -551,6 +580,8 @@ class ProductService {
           await supabase.from('products').insert({
             'name': p['name'],
             'price': p['price'],
+            'retail_price': p['retail_price'],
+            'cost_price': p['cost_price'],
             'stock': p['stock'],
             'is_promo': p['is_promo'] == 1,
             'other_qty': p['other_qty'],
@@ -632,6 +663,8 @@ class ProductService {
           clientUuid: p['client_uuid'],
           name: p['name'],
           price: (p['price'] as num).toDouble(),
+          cost_price: (p['cost_price'] as num).toDouble(),
+          retail_price: (p['retail_price'] as num).toDouble(),
           stock: p['stock'] as int,
           isPromo: p['is_promo'] as bool? ?? false,
           otherQty: p['other_qty'] as int? ?? 0,
@@ -660,6 +693,8 @@ class ProductService {
           productName: item['product_name'] as String,
           qty: item['qty'] as int,
           price: (item['price'] as num).toDouble(),
+          costPrice: (item['cost_price'] as num).toDouble(),
+          retailPrice: (item['retail_price'] as num).toDouble(),
           isPromo: item['is_promo'] as bool? ?? false,
           otherQty: item['other_qty'] as int? ?? 0,
         );
@@ -688,6 +723,8 @@ class ProductService {
   Future<void> addProduct(
     String name,
     double price,
+    double costPrice,
+    double retailPrice,
     int stock,
     bool isPromo,
     int otherQty,
@@ -698,6 +735,8 @@ class ProductService {
     await supabase.from('products').insert({
       'name': name,
       'price': price,
+      'cost_price': costPrice,
+      'retail_price': retailPrice,
       'stock': stock,
       'is_promo': isPromo,
       'other_qty': otherQty,
@@ -778,6 +817,8 @@ class ProductService {
                 'product_id': item['product_id'],
                 'qty': item['qty'],
                 'price': item['price'],
+                'cost_price': item['cost_price'],
+                'retail_price': item['retail_price'],
                 'product_name': item['product_name'],
                 'is_promo': item['is_promo'] == 1,
                 'other_qty': item['other_qty'],
@@ -825,6 +866,13 @@ class ProductService {
     final price = (p['price'] is int)
         ? (p['price'] as int).toDouble()
         : (p['price'] as double);
+        final retailPrice = (p['retail_price'] is int)
+        ? (p['retail_price'] as int).toDouble()
+        : (p['retail_price'] as double);
+    final costPrice = (p['cost_price'] is int)
+        ? (p['cost_price'] as int).toDouble()
+        : (p['cost_price'] as double);
+
     final stock = p['stock'] as int;
     final isPromo = (p['is_promo'] ?? 0) == 1;
     final otherQty = p['other_qty'] as int;
@@ -843,6 +891,8 @@ class ProductService {
             .update({
               'name': p['name'],
               'price': price,
+              'cost_price': costPrice,
+              'retail_price': retailPrice,
               'stock': stock,
               'is_promo': isPromo,
               'other_qty': otherQty,
@@ -855,6 +905,8 @@ class ProductService {
         await supabase.from('products').insert({
           'name': p['name'],
           'price': price,
+          'cost_price': costPrice,
+          'retail_price': retailPrice,
           'stock': stock,
           'is_promo': isPromo,
           'other_qty': otherQty,
@@ -892,6 +944,9 @@ class ProductService {
       productName: product.name,
       qty: qty,
       price: product.price,
+      costPrice: product.costPrice,
+      retailPrice: product.retailPrice,
+
       isPromo: isPromo,
       otherQty: otherQty,
     );
@@ -935,6 +990,16 @@ class ProductService {
             : item['price'] is double
             ? item['price'] as double
             : 0.0;
+            final double costPrice = item['cost_price'] is int
+            ? (item['cost_price'] as int).toDouble()
+            : item['cost_price'] is double
+            ? item['cost_price'] as double
+            : 0.0;
+        final double retailPrice = item['retail_price'] is int
+            ? (item['retail_price'] as int).toDouble()
+            : item['retail_price'] is double
+            ? item['retail_price'] as double
+            : 0.0;
 
         final bool isPromo = (item['is_promo'] ?? 0) == 1;
         final int otherQty = item['other_qty'] is int
@@ -965,6 +1030,8 @@ class ProductService {
               .insert({
                 'name': productName,
                 'price': price,
+                'cost_price': costPrice,
+                'retail_price': retailPrice,
                 'stock': otherQty + qty, // assume initial stock
                 'is_promo': isPromo,
                 'other_qty': otherQty,
@@ -1014,6 +1081,8 @@ class ProductService {
             'product_name': productName,
             'qty': qty,
             'price': price,
+            'cost_price': costPrice,
+            'retail_price': retailPrice,
             'is_promo': isPromo,
             'other_qty': otherQty,
             'product_client_uuid': productClientUuid,

@@ -93,95 +93,74 @@ class _AppdrawerState extends State<Appdrawer> {
           ),
           ListTile(
             leading: Icon(Icons.inventory_rounded),
-            title: Text("Add Productss"),
-          onTap: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(builder: (_) => AddProductPage()),
-  );
-},
-
+            title: Text("Add Products"),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => AddProductPage()),
+              );
+            },
           ),
-         ListTile(
-  leading: Icon(Icons.list_alt),
-  title: Text("View All Products"),
-  onTap: () {
-    Navigator.pop(context); // close drawer if inside drawer
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => AllProductsScreen()),
-    );
-  },
-),
+          // ListTile(
+          //   leading: Icon(Icons.list_alt),
+          //   title: Text("View All Products"),
+          //   onTap: () {
+          //     Navigator.pop(context); // close drawer if inside drawer
+          //     Navigator.push(
+          //       context,
+          //       MaterialPageRoute(builder: (context) => AllProductsScreen()),
+          //     );
+          //   },
+          // ),
 
-         ListTile(
-  leading: Icon(Icons.storefront_sharp),
-  title: Text('Stock'),
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => StockScreen()),
-    );
-  },
-),
+          ListTile(
+            leading: Icon(Icons.storefront_sharp),
+            title: Text('Inventory Stock'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => InventoryStock()),
+              );
+            },
+          ),
 
-
-    ListTile(
-  leading: Icon(Icons.history),
-  title: Text("Stock History"),
-  onTap: () {
-    Navigator.pop(context);
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-          builder: (context) => HistoryScreen()),
-    );
-  },
-),
-    ListTile(
-  leading: Icon(Icons.history),
-  title: Text("Trnasction History"),
-  onTap: () {
-    Navigator.pop(context);
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-          builder: (context) => TransactionHistoryScreen()),
-    );
-  },
-),
-
-
-       ListTile(
-  leading: Icon(Icons.campaign),
-  title: Text("Sales Report"),
-  onTap: () {
-    Navigator.pop(context);
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => SalesNavigationScreen(),
-      ),
-    );
-  },
-),
-
+          ListTile(
+            leading: Icon(Icons.campaign),
+            title: Text("Sales Report"),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => SalesNavigationScreen()),
+              );
+            },
+          ),
 
           ExpansionTile(
-            title: Text("Database"),
+            title: Text("Stock History"),
             children: [
               ListTile(
-                leading: Icon(Icons.backup),
-                title: Text("Backup"),
+                leading: Icon(Icons.history),
+                title: Text("Stock History"),
                 onTap: () {
                   Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => HistoryScreen()),
+                  );
                 },
               ),
               ListTile(
-                leading: Icon(Icons.restore),
-                title: Text("Restore"),
+                leading: Icon(Icons.history),
+                title: Text("Transction History"),
                 onTap: () {
                   Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TransactionHistoryScreen(),
+                    ),
+                  );
                 },
               ),
             ],

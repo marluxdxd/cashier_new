@@ -69,6 +69,8 @@ class StockHistorySyncService {
               .insert({
                 'name': product['name'] ?? 'UNKNOWN',
                 'price': product['price'] ?? 0.0,
+                'cost_price': product['cost_price'] ?? 0.0,
+                'retail_price': product['retail_price'] ?? 0.0,
                 'stock': product['stock'] ?? 0,
                 'is_promo': product['is_promo'] == 1,
                 'other_qty': product['other_qty'] ?? 0,

@@ -109,14 +109,14 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
 
     // Grand total
     double grandTotal = filteredItems.fold(0.0, (sum, i) {
-      return sum + ((i['qty'] as num) * (i['price'] as num));
+      return sum + ((i['qty'] as num) * (i['retail_price'] as num));
     });
 
     // Product sales totals for chart
     final productTotals = <String, double>{};
     for (var item in filteredItems) {
       final product = item['product_name'] ?? 'Unknown';
-      final subtotal = (item['qty'] as num) * (item['price'] as num);
+      final subtotal = (item['qty'] as num) * (item['retail_price'] as num);
       productTotals[product] = (productTotals[product] ?? 0) + subtotal;
     }
 
@@ -240,9 +240,9 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
               _tableCell('${item['transaction']?['id'] ?? ''}'),
               _tableCell(item['product_name'] ?? ''),
               _tableCell('${item['qty']}', align: pw.TextAlign.right),
-              _tableCell('₱${(item['price'] as num).toStringAsFixed(2)}', align: pw.TextAlign.right),
+              _tableCell('₱${(item['retail_price'] as num).toStringAsFixed(2)}', align: pw.TextAlign.right),
               _tableCell(
-                  '₱${((item['qty'] as num) * (item['price'] as num)).toStringAsFixed(2)}',
+                  '₱${((item['qty'] as num) * (item['retail_price'] as num)).toStringAsFixed(2)}',
                   align: pw.TextAlign.right),
               _tableCell(formatToPHT(item['transaction']?['created_at']?.toString())),
 

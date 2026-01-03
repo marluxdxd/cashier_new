@@ -12,6 +12,7 @@ class _AddProductPageState extends State<AddProductPage> {
   final nameController = TextEditingController();
   final priceController = TextEditingController();
   final costPriceController = TextEditingController();
+  final retailPriceController = TextEditingController();
   final stockController = TextEditingController();
   final promoQtyController = TextEditingController();
 
@@ -27,6 +28,7 @@ class _AddProductPageState extends State<AddProductPage> {
     final name = nameController.text.trim();
     final price = double.tryParse(priceController.text.trim()) ?? 0;
     final costPrice = double.tryParse(costPriceController.text.trim()) ?? 0;
+    final retailPrice = double.tryParse(retailPriceController.text.trim()) ?? 0;
     final stock = int.tryParse(stockController.text.trim()) ?? 0;
     otherQty = int.tryParse(promoQtyController.text.trim()) ?? 0;
     // Check internet connectivity
@@ -67,6 +69,7 @@ class _AddProductPageState extends State<AddProductPage> {
         name: name,
         price: price,
         costPrice: costPrice,
+        retailPrice: retailPrice,
         stock: stock,
         isPromo: isPromo,
         otherQty: otherQty,
@@ -150,6 +153,11 @@ class _AddProductPageState extends State<AddProductPage> {
               controller: costPriceController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: "Cost Price"),
+            ),
+            TextField(
+              controller: retailPriceController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: "Retail Price"),
             ),
             TextField(
               controller: stockController,

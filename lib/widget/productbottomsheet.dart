@@ -136,7 +136,7 @@ class _ProductbottomsheetState extends State<Productbottomsheet> {
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: Text(
-                                        "PROMO ${product.otherQty}x${product.price}",
+                                        "PROMO ${product.otherQty}x${product.retailPrice}",
                                         style: TextStyle(
                                           color: Colors.white,
                                           fontSize: 8,
@@ -169,7 +169,7 @@ class _ProductbottomsheetState extends State<Productbottomsheet> {
                                 ],
                               ),
                               subtitle: Text(
-                                'Price: ₱${product.price} • Stock: ${product.stock}',
+                                'Price: ₱${product.retailPrice} • Stock: ${product.stock}',
                               ),
                               onTap: product.stock == 0
                                   ? null // disable tap if out of stock
