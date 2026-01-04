@@ -47,7 +47,9 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
 
   // Load custom fonts
   Future<void> loadFonts() async {
-    final regularData = await rootBundle.load('assets/fonts/NotoSans-Regular.ttf');
+    final regularData = await rootBundle.load(
+      'assets/fonts/NotoSans-Regular.ttf',
+    );
     final boldData = await rootBundle.load('assets/fonts/NotoSans-Bold.ttf');
 
     setState(() {
@@ -66,7 +68,9 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
           .order('created_at', ascending: false);
       final itemsRes = await supabase.from('transaction_items').select('*');
 
-      final transactions = List<Map<String, dynamic>>.from(transactionsRes as List);
+      final transactions = List<Map<String, dynamic>>.from(
+        transactionsRes as List,
+      );
       final items = List<Map<String, dynamic>>.from(itemsRes as List);
 
       mergedItems = items.map((item) {
@@ -90,7 +94,8 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
       final createdAt = item['transaction']?['created_at'];
       if (createdAt == null) return false;
       final date = DateTime.parse(createdAt.toString());
-      return !date.isBefore(start) && !date.isAfter(end.add(const Duration(days: 1)));
+      return !date.isBefore(start) &&
+          !date.isAfter(end.add(const Duration(days: 1)));
     }).toList();
   }
 
@@ -131,8 +136,10 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
         margin: const pw.EdgeInsets.all(32),
         build: (context) {
           return [
-            pw.Text('Payments Report',
-                style: pw.TextStyle(font: boldFont, fontSize: 22)),
+            pw.Text(
+              'Payments Report',
+              style: pw.TextStyle(font: boldFont, fontSize: 22),
+            ),
             pw.SizedBox(height: 8),
             pw.Text(
               '${DateFormat('MMM dd, yyyy').format(start)} - ${DateFormat('MMM dd, yyyy').format(end)}',
@@ -179,7 +186,10 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
                             decoration: pw.BoxDecoration(
                               color: PdfColors.blue,
                               borderRadius: pw.BorderRadius.circular(4),
-                              border: pw.Border.all(color: PdfColors.grey700, width: 0.5),
+                              border: pw.Border.all(
+                                color: PdfColors.grey700,
+                                width: 0.5,
+                              ),
                             ),
                           ),
                           pw.SizedBox(height: 6),
@@ -187,7 +197,10 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
                             width: 28,
                             child: pw.Text(
                               entry.key,
-                              style: pw.TextStyle(font: regularFont, fontSize: 8),
+                              style: pw.TextStyle(
+                                font: regularFont,
+                                fontSize: 8,
+                              ),
                               textAlign: pw.TextAlign.center,
                             ),
                           ),
@@ -197,7 +210,7 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
                   ),
                 ),
               ],
-            )
+            ),
           ];
         },
       ),
@@ -205,7 +218,8 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
 
     final dir = await getApplicationDocumentsDirectory();
     final file = File(
-        '${dir.path}/payments_${DateFormat('yyyyMMdd').format(start)}_${DateFormat('yyyyMMdd').format(end)}.pdf');
+      '${dir.path}/payments_${DateFormat('yyyyMMdd').format(start)}_${DateFormat('yyyyMMdd').format(end)}.pdf',
+    );
     await file.writeAsBytes(await pdf.save());
     return file;
   }
@@ -215,8 +229,8 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
     return pw.Table(
       border: pw.TableBorder.all(color: PdfColors.grey300),
       columnWidths: {
-        0: const pw.FlexColumnWidth(2),
-        1: const pw.FlexColumnWidth(3),
+        0: const pw.FlexColumnWidth(3),
+        1: const pw.FlexColumnWidth(1),
         2: const pw.FlexColumnWidth(1),
         3: const pw.FlexColumnWidth(2),
         4: const pw.FlexColumnWidth(2),
@@ -226,43 +240,61 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
         pw.TableRow(
           decoration: const pw.BoxDecoration(color: PdfColors.blueGrey100),
           children: [
+             _tableHeader('Date'),
             _tableHeader('Transaction ID'),
             _tableHeader('Product'),
             _tableHeader('Qty'),
             _tableHeader('Price'),
             _tableHeader('Subtotal'),
-            _tableHeader('Date'),
+           
           ],
         ),
         for (var item in items)
           pw.TableRow(
             children: [
+              _tableCell(
+                formatToPHT(item['transaction']?['created_at']?.toString()),
+              ),
               _tableCell('${item['transaction']?['id'] ?? ''}'),
               _tableCell(item['product_name'] ?? ''),
               _tableCell('${item['qty']}', align: pw.TextAlign.right),
-              _tableCell('₱${(item['retail_price'] as num).toStringAsFixed(2)}', align: pw.TextAlign.right),
               _tableCell(
-                  '₱${((item['qty'] as num) * (item['retail_price'] as num)).toStringAsFixed(2)}',
-                  align: pw.TextAlign.right),
-              _tableCell(formatToPHT(item['transaction']?['created_at']?.toString())),
-
+                '₱${(item['retail_price'] as num).toStringAsFixed(2)}',
+                align: pw.TextAlign.right,
+              ),
+              _tableCell(
+                '₱${((item['qty'] as num) * (item['retail_price'] as num)).toStringAsFixed(2)}',
+                align: pw.TextAlign.right,
+              ),
+              
             ],
           ),
       ],
     );
   }
 
-  pw.Widget _tableHeader(String text, {pw.TextAlign align = pw.TextAlign.left}) {
+  pw.Widget _tableHeader(
+    String text, {
+    pw.TextAlign align = pw.TextAlign.left,
+  }) {
     return pw.Padding(
       padding: const pw.EdgeInsets.all(6),
-      child: pw.Text(text, style: pw.TextStyle(font: boldFont), textAlign: align),
+      child: pw.Text(
+        text,
+        style: pw.TextStyle(font: boldFont),
+        textAlign: align,
+      ),
     );
   }
 
   pw.Widget _tableCell(String text, {pw.TextAlign align = pw.TextAlign.left}) {
     return pw.Padding(
       padding: const pw.EdgeInsets.all(6),
-      child: pw.Text(text, style: pw.TextStyle(font: regularFont), textAlign: align),
+      child: pw.Text(
+        text,
+        style: pw.TextStyle(font: regularFont),
+        textAlign: align,
+      ),
     );
   }
 
@@ -283,9 +315,11 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
                 );
                 if (picked != null) setState(() => startDate = picked);
               },
-              child: Text(startDate == null
-                  ? "Start Date"
-                  : "From: ${DateFormat('yyyy-MM-dd').format(startDate!)}"),
+              child: Text(
+                startDate == null
+                    ? "Start Date"
+                    : "From: ${DateFormat('yyyy-MM-dd').format(startDate!)}",
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -300,9 +334,11 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
                 );
                 if (picked != null) setState(() => endDate = picked);
               },
-              child: Text(endDate == null
-                  ? "End Date"
-                  : "To: ${DateFormat('yyyy-MM-dd').format(endDate!)}"),
+              child: Text(
+                endDate == null
+                    ? "End Date"
+                    : "To: ${DateFormat('yyyy-MM-dd').format(endDate!)}",
+              ),
             ),
           ),
           IconButton(
@@ -310,7 +346,10 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
             onPressed: () {
               if (startDate != null && endDate != null) {
                 setState(() {
-                  reportQueue.add({'startDate': startDate!, 'endDate': endDate!});
+                  reportQueue.add({
+                    'startDate': startDate!,
+                    'endDate': endDate!,
+                  });
                 });
                 saveReportQueue();
               }
@@ -325,10 +364,12 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
   Future<void> saveReportQueue() async {
     final prefs = await SharedPreferences.getInstance();
     final json = reportQueue
-        .map((e) => {
-              'startDate': e['startDate']!.toIso8601String(),
-              'endDate': e['endDate']!.toIso8601String(),
-            })
+        .map(
+          (e) => {
+            'startDate': e['startDate']!.toIso8601String(),
+            'endDate': e['endDate']!.toIso8601String(),
+          },
+        )
         .toList();
     await prefs.setString('reportQueue', jsonEncode(json));
   }
@@ -358,7 +399,9 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
         dateFilterBar(),
         Expanded(
           child: reportQueue.isEmpty
-              ? const Center(child: Text("No reports queued. Select date range."))
+              ? const Center(
+                  child: Text("No reports queued. Select date range."),
+                )
               : ListView.builder(
                   itemCount: reportQueue.length,
                   itemBuilder: (context, index) {
@@ -369,19 +412,24 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
                       margin: const EdgeInsets.all(12),
                       child: ListTile(
                         title: Text(
-                            'Report: ${DateFormat('MMM dd, yyyy').format(start)} - ${DateFormat('MMM dd, yyyy').format(end)}'),
+                          'Report: ${DateFormat('MMM dd, yyyy').format(start)} - ${DateFormat('MMM dd, yyyy').format(end)}',
+                        ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.picture_as_pdf, color: Colors.red),
+                              icon: const Icon(
+                                Icons.picture_as_pdf,
+                                color: Colors.red,
+                              ),
                               onPressed: () async {
                                 final file = await generatePDF(start, end);
                                 if (!mounted) return;
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => ViewPDFScreen2(pdfFile: file),
+                                    builder: (_) =>
+                                        ViewPDFScreen2(pdfFile: file),
                                   ),
                                 );
                               },
@@ -390,13 +438,18 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
                               icon: const Icon(Icons.share, color: Colors.blue),
                               onPressed: () async {
                                 final file = await generatePDF(start, end);
-                                await Share.shareXFiles([XFile(file.path)],
-                                    text:
-                                        'Payments Report: ${DateFormat('MMM dd, yyyy').format(start)} - ${DateFormat('MMM dd, yyyy').format(end)}');
+                                await Share.shareXFiles(
+                                  [XFile(file.path)],
+                                  text:
+                                      'Payments Report: ${DateFormat('MMM dd, yyyy').format(start)} - ${DateFormat('MMM dd, yyyy').format(end)}',
+                                );
                               },
                             ),
                             IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.grey),
+                              icon: const Icon(
+                                Icons.delete,
+                                color: Colors.grey,
+                              ),
                               onPressed: () {
                                 setState(() {
                                   reportQueue.removeAt(index);

@@ -12,16 +12,23 @@ class POSRowManager {
   }
 
   late List<POSRow> rows;
-
+int promoCount = 0; // 🔥 PROMO COUNTER
   // ================= ADD EMPTY ROW =================
   void addEmptyRow() {
     rows.add(POSRow());
+    print("addEmptyRow() called → total rows: ${rows.length}");
   }
 
   // ================= RESET (IMPORTANT) =================
   void reset() {
     rows = [POSRow()];
   }
+
+ void reset_promoCount() {
+  promoCount = 0;
+  print("♻️ RESET → promoCount reset to 0");
+  rows = [POSRow()];
+}
 
   // ================= AUTO FILL ROWS =================
   Future<void> autoFillRows(VoidCallback onUpdate) async {
@@ -43,6 +50,15 @@ class POSRowManager {
       row.otherQty = selectedProduct.isPromo ? selectedProduct.otherQty : 0;
       row.qty = 0;
 
+      if (row.isPromo && row.product != null) {
+   promoCount++;
+  print(
+    "🎁 PROMO ADDED → "
+    "ID: ${row.product!.id}, "
+    "Name: ${row.product!.name}, "
+    "Count: $promoCount"
+  );
+}
       onUpdate(); // 🔥 IMPORTANT: update UI immediately
 
       if (row == rows.last) addEmptyRow();
@@ -142,6 +158,7 @@ class POSRowManager {
                 if (isAutoNextRowOn) {
                   if (row == rows.last) {
                     addEmptyRow();
+                    print("AUTO FILL: New empty row added. Total rows = ${rows.length}");
                     onUpdate();
                   }
 
@@ -200,8 +217,18 @@ class POSRowManager {
           IconButton(
             icon: const Icon(Icons.delete, color: Colors.red),
             onPressed: () {
+
+                final removedRow = rows[index];
+
+  if (removedRow.isPromo) {
+    promoCount--;
+    print("❌ PROMO REMOVED → count: $promoCount");
+  }
+
+
+
               rows.removeAt(index);
-              if (rows.isEmpty) reset();
+              if (rows.isEmpty) reset_promoCount(); reset();
               onUpdate();
             },
           ),
@@ -211,12 +238,16 @@ class POSRowManager {
   }
 
   // ================= TOTAL BILL =================
-  double get totalBill {
+   double get totalBill {
     double total = 0;
-    for (final row in rows) {
-      if (row.product == null) continue;
-      final qty = row.isPromo ? row.otherQty : row.qty;
-      total += row.product!.retailPrice ;
+    for (var row in rows) {
+      if (row.product != null) {
+        if (row.isPromo) {
+          total += row.product!.retailPrice;
+        } else {
+          total += row.product!.retailPrice * row.qty;
+        }
+      }
     }
     return total;
   }

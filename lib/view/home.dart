@@ -107,6 +107,7 @@ class _HomeState extends State<Home> {
       setState(() => isSyncing = false);
     }
   }
+ 
 
   @override
   void dispose() {
@@ -293,8 +294,17 @@ class _HomeState extends State<Home> {
 
                 // ---------------- COMBINE SAME PRODUCTS ----------------
                 final Map<int, POSRow> combinedItems = {};
+                final int localTransactionId = await localDb.insertTransaction(
+                  total: finalTotal,
+                  cash: cash,
+                  change: transactionService.calculateChange(finalTotal, cash),
+                  createdAt: getPhilippineTimestampFormatted(),
+                  isSynced: 0,
+                  clientUuid: const Uuid().v4(),
+                );
                 for (final row in posManager.rows) {
                   if (row.product == null) continue;
+                
                   final product = row.product!;
                   final qty = row.isPromo ? row.otherQty : row.qty;
 
@@ -308,6 +318,7 @@ class _HomeState extends State<Home> {
                       otherQty: row.otherQty,
                     );
                   }
+                   
                 }
 
                 // ---------------- SHOW UI IMMEDIATELY ----------------
@@ -318,6 +329,7 @@ class _HomeState extends State<Home> {
                   );
                   customerCashController.clear();
                   posManager.reset();
+                  posManager.reset_promoCount();
                   _updateUI();
                 }
 
@@ -370,11 +382,12 @@ class _HomeState extends State<Home> {
                             productId: product.id,
                             productName: product.name,
                             qty: qtySold,
-                              retailPrice: product.retailPrice,
-                              costPrice: product.costPrice,
+                            retailPrice: product.retailPrice,
+                            costPrice: product.costPrice,
                             isPromo: product.isPromo,
                             otherQty: product.otherQty,
                             productClientUuid: product.productClientUuid,
+                            promoCount: row.isPromo ? row.otherQty : 0,
                           ),
                           if (oldStock != null)
                             localDb.updateProductStock(product.id, newStock),

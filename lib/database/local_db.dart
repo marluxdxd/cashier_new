@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:uuid/uuid.dart';
 
 class LocalDatabase {
   Database? _database;
@@ -129,7 +130,7 @@ class LocalDatabase {
         name TEXT NOT NULL,
     
         cost_price REAL DEFAULT 0,
-        retail_price REAL NUT NULL,
+        retail_price REAL DEFAULT price,
         stock INTEGER NOT NULL,
         is_promo INTEGER DEFAULT 0,
         other_qty INTEGER DEFAULT 0,
@@ -188,16 +189,16 @@ CREATE TABLE transaction_items(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   transaction_id INTEGER NOT NULL,
   product_id INTEGER NOT NULL,
+  promo_count INTEGER DEFAULT 0,
   product_name TEXT NOT NULL,
   qty INTEGER NOT NULL,
   cost_price REAL DEFAULT 0,
-  retail_price REAL NOT NULL,
+  retail_price REAL DEFAULT price,
   is_promo INTEGER DEFAULT 0,
   other_qty INTEGER,
   is_synced INTEGER DEFAULT 0,
   supabase_id INTEGER,
   product_client_uuid text NOT NULL,
-
   UNIQUE(transaction_id, product_id, product_client_uuid)
 )
 ''');
@@ -719,9 +720,8 @@ Future<int> insertTransaction({
     return await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
   }
 
-  // ------------------- TRANSACTION ITEMS -------------------
 
-  // ------------------- TRANSACTION ITEMS CRUD ------------------- //
+  // ------------------- TRANSACTION ITEMS CRUD ------------------- //                                         OFFLINE
   // 🔹 Insert a new transaction item (replace if ID exists)
 Future<int> insertTransactionItem({
 
@@ -735,13 +735,14 @@ Future<int> insertTransactionItem({
   int otherQty = 0,
   int isSynced = 0, // 0 = not synced, 1 = synced
   String? productClientUuid,
+  int promoCount = 0,
 }) async {
   final db = await database;
 
   try {
     print("🟡 INSERTING transaction_items:");
-
-    print("  transaction_id: $transactionId");
+    print("🟡 transaction_id: $transactionId");
+    print("  promo_count: $promoCount");
     print("  product_id: $productId");
     print("  product_name: $productName");
     print("  qty: $qty");
@@ -751,21 +752,24 @@ Future<int> insertTransactionItem({
     print("  other_qty: $otherQty");
     print("  is_synced: $isSynced");
     print("  product_client_uuid: $productClientUuid");
-
+ // ⚠️ Ensure not null
+  final uuid = productClientUuid ?? const Uuid().v4();
     final result = await db.insert(
+      
       'transaction_items',
       {
     
         'transaction_id': transactionId,
         'product_id': productId,
         'product_name': productName,
+        'promo_count': promoCount,
         'qty': qty,
         'cost_price': costPrice,
         'retail_price': retailPrice,
         'is_promo': isPromo ? 1 : 0,
         'other_qty': otherQty,
         'is_synced': isSynced,
-        'product_client_uuid': productClientUuid,
+        'product_client_uuid': uuid,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -813,17 +817,6 @@ Future<int> insertTransactionItem({
     );
     return result;
   }
-
-  // // 🔹 Delete a transaction item by ID
-  // Future<int> deleteTransactionItem(int id) async {
-  //   final db = await database;
-  //   return await db.delete(
-  //     'transaction_items',
-  //     where: 'id = ?',
-  //     whereArgs: [id],
-  //   );
-  // }
-
   Future<void> insertStockHistory({
     required int transactionId, // ✅ ADD
     required int id,
@@ -1018,7 +1011,7 @@ Future<void> printAllTransactionItems() async {
     await txn.delete('product_stock_history');
     await txn.delete('transaction_items');
     await txn.delete('transactions');
-    await txn.delete('products');
+    // await txn.delete('products');
 
     // Reset AUTOINCREMENT counters
     await txn.execute("DELETE FROM sqlite_sequence");

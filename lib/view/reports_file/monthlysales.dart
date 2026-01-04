@@ -45,39 +45,42 @@ class _MonthlySalesState extends State<MonthlySales> {
     );
     final boldData = await rootBundle.load('assets/fonts/NotoSans-Bold.ttf');
 
-    setState(() {
-      regularFont = pw.Font.ttf(regularData);
-      boldFont = pw.Font.ttf(boldData);
-    });
+    regularFont = pw.Font.ttf(regularData);
+    boldFont = pw.Font.ttf(boldData);
   }
 
   // 🔹 LOAD LOGO
   Future<void> loadLogo() async {
     final logoData = await rootBundle.load('assets/images/marhon.png');
-    setState(() {
-      logoBytes = logoData.buffer.asUint8List();
-    });
+    logoBytes = logoData.buffer.asUint8List();
   }
 
-  // 🔹 FETCH MONTHS FROM transactions
+  // 🔹 LOAD AVAILABLE MONTHS
   Future<void> loadMonths() async {
     final res = await supabase
         .from('transactions')
         .select('created_at')
         .order('created_at');
 
-    final dates = (res as List)
-        .map((e) => DateTime.parse(e['created_at']))
-        .map((d) => DateFormat('yyyy-MM').format(d))
-        .toSet()
-        .toList();
-
-    dates.sort((a, b) => b.compareTo(a));
+    final months =
+        (res as List)
+            .map((e) => DateTime.parse(e['created_at']))
+            .map((d) => DateFormat('yyyy-MM').format(d))
+            .toSet()
+            .toList()
+          ..sort((a, b) => b.compareTo(a));
 
     setState(() {
-      availableMonths = dates;
+      availableMonths = months;
       isLoading = false;
     });
+  }
+
+  String formatToPHT(String? utcString) {
+    if (utcString == null) return '';
+    final utcTime = DateTime.parse(utcString).toUtc();
+    final phtTime = utcTime.add(const Duration(hours: 8));
+    return DateFormat('yyyy-MM-dd hh:mm a').format(phtTime);
   }
 
   String formatMonth(String yyyymm) {
@@ -85,18 +88,15 @@ class _MonthlySalesState extends State<MonthlySales> {
     return DateFormat('MMMM yyyy').format(date);
   }
 
-  // 🔹 FETCH ALL TRANSACTIONS AND ITEMS
+  // 🔹 FETCH ITEMS + TRANSACTION
   Future<List<Map<String, dynamic>>> fetchAllItemsMerged() async {
     final itemsRes = await supabase.from('transaction_items').select('*');
-    final transactionsRes = await supabase.from('transactions').select('*');
+    final txRes = await supabase.from('transactions').select('*');
 
     final items = List<Map<String, dynamic>>.from(itemsRes as List);
-    final transactions = List<Map<String, dynamic>>.from(
-      transactionsRes as List,
-    );
+    final transactions = List<Map<String, dynamic>>.from(txRes as List);
 
-    // Merge transaction data into items
-    final merged = items.map((item) {
+    return items.map((item) {
       final tx = transactions.firstWhere(
         (t) => t['id'] == item['transaction_id'],
         orElse: () => {},
@@ -104,11 +104,9 @@ class _MonthlySalesState extends State<MonthlySales> {
       item['transaction'] = tx;
       return item;
     }).toList();
-
-    return merged;
   }
 
-  // 🔹 FILTER ITEMS BY MONTH
+  // 🔹 FILTER BY MONTH
   List<Map<String, dynamic>> filterItemsByMonth(
     List<Map<String, dynamic>> allItems,
     String month,
@@ -116,14 +114,11 @@ class _MonthlySalesState extends State<MonthlySales> {
     return allItems.where((item) {
       final createdAt = item['transaction']?['created_at'];
       if (createdAt == null) return false;
-      final itemMonth = DateFormat(
-        'yyyy-MM',
-      ).format(DateTime.parse(createdAt.toString()));
-      return itemMonth == month;
+      return DateFormat('yyyy-MM').format(DateTime.parse(createdAt)) == month;
     }).toList();
   }
 
-  // 🔹 GENERATE PDF WITH COMPACT MONTHLY CHART
+  // 🔹 GENERATE PDF
   Future<File> generateMonthlyPDF(
     String month,
     List<Map<String, dynamic>> monthlyItems,
@@ -131,22 +126,17 @@ class _MonthlySalesState extends State<MonthlySales> {
   ) async {
     final pdf = pw.Document();
 
-    // Helper: format numbers without .00
-    String formatNumber(double value) {
-      if (value == value.roundToDouble()) {
-        return '${value.toInt()}';
-      } else {
-        return value.toStringAsFixed(2);
-      }
-    }
+    String formatNumber(double value) => value == value.roundToDouble()
+        ? value.toInt().toString()
+        : value.toStringAsFixed(2);
 
-    // Total revenue for selected month
     final totalRevenue = monthlyItems.fold<double>(
       0,
-      (sum, i) => sum + ((i['qty'] as int) * (i['retail_price'] as num).toDouble()),
+      (sum, i) =>
+          sum + ((i['qty'] as int) * (i['retail_price'] as num).toDouble()),
     );
 
-    // Chart: monthly totals for Jan–Dec
+    // 🔹 MONTHLY CHART DATA
     final monthOrder = [
       'Jan',
       'Feb',
@@ -161,12 +151,14 @@ class _MonthlySalesState extends State<MonthlySales> {
       'Nov',
       'Dec',
     ];
+
     Map<String, double> monthlyTotals = {for (var m in monthOrder) m: 0.0};
 
     for (var item in allItems) {
       final createdAt = item['transaction']?['created_at'];
       if (createdAt == null) continue;
-      final m = DateFormat('MMM').format(DateTime.parse(createdAt.toString()));
+
+      final m = DateFormat('MMM').format(DateTime.parse(createdAt));
       if (monthlyTotals.containsKey(m)) {
         final subtotal =
             (item['qty'] as int) * (item['retail_price'] as num).toDouble();
@@ -174,21 +166,20 @@ class _MonthlySalesState extends State<MonthlySales> {
       }
     }
 
-    final maxMonthlyRevenue = monthlyTotals.values.isNotEmpty
-        ? monthlyTotals.values.reduce((a, b) => a > b ? a : b)
-        : 1.0;
+    final maxMonthlyRevenue = monthlyTotals.values.reduce(
+      (a, b) => a > b ? a : b,
+    );
 
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(32),
-        build: (context) {
+        build: (_) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               // HEADER
               pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.center,
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   if (logoBytes != null)
@@ -210,30 +201,27 @@ class _MonthlySalesState extends State<MonthlySales> {
               ),
               pw.Divider(),
 
-              // REVENUE
               pw.Text(
                 'Total Revenue: ₱${totalRevenue.toStringAsFixed(2)}',
                 style: pw.TextStyle(font: regularFont),
               ),
-              pw.Text(
-                'Estimated Profit (30%): ₱${(totalRevenue * 0.3).toStringAsFixed(2)}',
-                style: pw.TextStyle(font: regularFont),
-              ),
-              pw.SizedBox(height: 20),
+              pw.SizedBox(height: 15),
 
-              // PRODUCT TABLE
+              // TABLE
               pw.Text(
                 'Transaction Items',
                 style: pw.TextStyle(font: boldFont, fontSize: 18),
               ),
-              pw.SizedBox(height: 10),
+              pw.SizedBox(height: 8),
+
               pw.Table(
                 border: pw.TableBorder.all(color: PdfColors.grey300),
                 columnWidths: {
-                  0: const pw.FlexColumnWidth(4),
-                  1: const pw.FlexColumnWidth(1),
-                  2: const pw.FlexColumnWidth(2),
+                  0: const pw.FlexColumnWidth(3),
+                  1: const pw.FlexColumnWidth(2),
+                  2: const pw.FlexColumnWidth(1),
                   3: const pw.FlexColumnWidth(2),
+                  4: const pw.FlexColumnWidth(2),
                 },
                 children: [
                   pw.TableRow(
@@ -241,7 +229,9 @@ class _MonthlySalesState extends State<MonthlySales> {
                       color: PdfColors.blueGrey100,
                     ),
                     children: [
+                      tableHeader('Date'),
                       tableHeader('Product'),
+
                       tableHeader('Qty'),
                       tableHeader('Price'),
                       tableHeader('Subtotal'),
@@ -249,10 +239,16 @@ class _MonthlySalesState extends State<MonthlySales> {
                   ),
                   ...monthlyItems.map((i) {
                     final subtotal =
-                        (i['qty'] as int) * (i['retail_price'] as num).toDouble();
+                        (i['qty'] as int) *
+                        (i['retail_price'] as num).toDouble();
+                    final dateStr = formatToPHT(
+                      (i['transaction']['created_at']),
+                    );
                     return pw.TableRow(
                       children: [
+                        tableCell(dateStr),
                         tableCell(i['product_name'] ?? ''),
+
                         tableCell(
                           i['qty'].toString(),
                           align: pw.TextAlign.right,
@@ -267,25 +263,11 @@ class _MonthlySalesState extends State<MonthlySales> {
                         ),
                       ],
                     );
-                  }),
-                  pw.TableRow(
-                    decoration: const pw.BoxDecoration(
-                      color: PdfColors.blueGrey200,
-                    ),
-                    children: [
-                      tableHeader('TOTAL'),
-                      pw.Container(),
-                      pw.Container(),
-                      tableHeader(
-                        '₱${totalRevenue.toStringAsFixed(2)}',
-                        align: pw.TextAlign.right,
-                      ),
-                    ],
-                  ),
+                  }).toList(),
                 ],
               ),
 
-              // COMPACT MONTHLY CHART
+              // 🔹 MONTHLY SALES CHART (GI KEEP)
               pw.SizedBox(height: 15),
               pw.Text(
                 'Monthly Sales Chart',
@@ -299,17 +281,15 @@ class _MonthlySalesState extends State<MonthlySales> {
                   ),
                 ),
                 padding: const pw.EdgeInsets.all(4),
-                height: 100, // compact height
+                height: 100,
                 child: pw.Wrap(
                   spacing: 4,
-                  alignment: pw.WrapAlignment.start,
                   crossAxisAlignment: pw.WrapCrossAlignment.end,
                   children: [
                     for (var m in monthOrder)
                       pw.Column(
                         mainAxisAlignment: pw.MainAxisAlignment.end,
                         children: [
-                          // Numeric label (hide zero)
                           if (monthlyTotals[m]! > 0)
                             pw.Text(
                               formatNumber(monthlyTotals[m]!),
@@ -318,16 +298,12 @@ class _MonthlySalesState extends State<MonthlySales> {
                                 fontSize: 7,
                               ),
                             ),
-                          if (monthlyTotals[m]! > 0) pw.SizedBox(height: 1),
-                          // Bar (height 0 if no sales)
                           pw.Container(
                             width: 10,
                             height:
                                 (monthlyTotals[m]! / maxMonthlyRevenue) * 70,
                             color: PdfColors.blue,
                           ),
-                          pw.SizedBox(height: 2),
-                          // Month label
                           pw.Text(
                             m,
                             style: pw.TextStyle(font: regularFont, fontSize: 6),
@@ -373,57 +349,38 @@ class _MonthlySalesState extends State<MonthlySales> {
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) return const Center(child: CircularProgressIndicator());
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
     return ListView.builder(
       itemCount: availableMonths.length,
-      itemBuilder: (context, index) {
+      itemBuilder: (_, index) {
         final month = availableMonths[index];
 
         return Card(
           margin: const EdgeInsets.all(12),
           child: ListTile(
             title: Text(formatMonth(month)),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.picture_as_pdf, color: Colors.red),
-                  onPressed: () async {
-                    final allItems = await fetchAllItemsMerged();
-                    final monthlyItems = filterItemsByMonth(allItems, month);
-                    final file = await generateMonthlyPDF(
-                      month,
-                      monthlyItems,
-                      allItems,
-                    );
+            trailing: IconButton(
+              icon: const Icon(Icons.picture_as_pdf, color: Colors.red),
+              onPressed: () async {
+                final allItems = await fetchAllItemsMerged();
+                final monthlyItems = filterItemsByMonth(allItems, month);
+                final file = await generateMonthlyPDF(
+                  month,
+                  monthlyItems,
+                  allItems,
+                );
 
-                    if (!mounted) return;
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ViewPDFScreen(pdfFile: file),
-                      ),
-                    );
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.share, color: Colors.blue),
-                  onPressed: () async {
-                    final allItems = await fetchAllItemsMerged();
-                    final monthlyItems = filterItemsByMonth(allItems, month);
-                    final file = await generateMonthlyPDF(
-                      month,
-                      monthlyItems,
-                      allItems,
-                    );
-
-                    await Share.shareXFiles([
-                      XFile(file.path),
-                    ], text: 'Monthly Sales Report - ${formatMonth(month)}');
-                  },
-                ),
-              ],
+                if (!mounted) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ViewPDFScreen(pdfFile: file),
+                  ),
+                );
+              },
             ),
           ),
         );
