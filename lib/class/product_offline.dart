@@ -4,7 +4,7 @@ class ProductOffline {
   // For product item
   final int productId;
   final String? productName;
-  final double? price;
+
   final double? retailPrice;
   final double? costPrice;
   final int? qty;
@@ -25,7 +25,7 @@ class ProductOffline {
     required this.id,
     required this.productId,
     this.productName,
-    this.price,
+   
     this.retailPrice,
     this.costPrice,
     this.qty,
@@ -44,8 +44,7 @@ class ProductOffline {
       'id': id,
       'product_id': productId,
       'product_name': productName,
-      'price': price,
-      'retail_price': retailPrice,
+         'retail_price': retailPrice,
       'cost_price': costPrice,
       'qty': qty,
       'is_promo': isPromo ? 1 : 0,
@@ -63,7 +62,6 @@ class ProductOffline {
       id: map['id'],
       productId: map['product_id'],
       productName: map['product_name'],
-      price: (map['price'] as num?)?.toDouble(),
       retailPrice: (map['retail_price'] as num?)?.toDouble(),
       costPrice: (map['cost_price'] as num?)?.toDouble(),
       qty: map['qty'],

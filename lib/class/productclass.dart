@@ -3,7 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class Productclass {
   final int id;
   final String name;
-  final double price;
   final double retailPrice;
   final double costPrice;
   int stock;
@@ -15,7 +14,6 @@ class Productclass {
   Productclass({
     required this.id,
     required this.name,
-    required this.price,
     required this.retailPrice,
     required this.costPrice,
     required this.stock,
@@ -30,7 +28,6 @@ class Productclass {
     return {
       'id': id,
       'name': name,
-      'price': price,
       'retail_price': retailPrice,
       'cost_price': costPrice,
       'stock': stock,
@@ -46,9 +43,6 @@ class Productclass {
     return Productclass(
       id: map['id'],
       name: map['name'],
-      price: map['price'] is int
-          ? (map['price'] as int).toDouble()
-          : map['price'],
       retailPrice: map['retail_price'] is int
           ? (map['retail_price'] as int).toDouble()
           : map['retail_price'],

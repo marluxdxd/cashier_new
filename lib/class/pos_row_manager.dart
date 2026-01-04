@@ -70,21 +70,21 @@ class POSRowManager {
     required VoidCallback onUpdate,
     required bool isAutoNextRowOn,
   }) {
-    // double displayPrice = 0;
-    // if (row.product != null) {
-    //   displayPrice = row.isPromo
-    //       ? row.product!.price
-    //       : row.product!.price * row.qty;
+    double displayPrice = 0;
+    if (row.product != null) {
+      displayPrice = row.isPromo
+          ? row.product!.retailPrice
+          : row.product!.retailPrice * row.qty;
 
     
-    // }
+    }
 
-     double displayPrice2 = 0;
-     if (row.product != null) {
-       displayPrice2 = row.isPromo
-           ? row.product!.retailPrice
-           : row.product!.retailPrice * row.qty;
-     }     
+    //  double displayPrice2 = 0;
+    //  if (row.product != null) {
+    //    displayPrice2 = row.isPromo
+    //        ? row.product!.retailPrice
+    //        : row.product!.retailPrice * row.qty;
+    //  }     
 
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 6),
@@ -192,7 +192,7 @@ class POSRowManager {
 
           // ================= ROW TOTAL =================
           Text(
-            "₱${displayPrice2.toStringAsFixed(2)}",
+            "₱${displayPrice.toStringAsFixed(2)}",
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
 
@@ -216,7 +216,7 @@ class POSRowManager {
     for (final row in rows) {
       if (row.product == null) continue;
       final qty = row.isPromo ? row.otherQty : row.qty;
-      total += row.product!.retailPrice * qty;
+      total += row.product!.retailPrice ;
     }
     return total;
   }

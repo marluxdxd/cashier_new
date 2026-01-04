@@ -370,7 +370,6 @@ class _HomeState extends State<Home> {
                             productId: product.id,
                             productName: product.name,
                             qty: qtySold,
-                            price: product.price,
                               retailPrice: product.retailPrice,
                               costPrice: product.costPrice,
                             isPromo: product.isPromo,
@@ -383,7 +382,6 @@ class _HomeState extends State<Home> {
                             localDb.updateProduct(
                               id: product.id,
                               stock: newStock,
-                              price: product.price,
                               retailPrice: product.retailPrice,
                               costPrice: product.costPrice,
                               isPromo: product.isPromo,

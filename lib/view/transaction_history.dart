@@ -106,10 +106,9 @@ void initState() {
     double total = 0;
     for (var item in items) {
       final qty = item['qty'] as int;
-      final price = (item['price'] as num).toDouble();
       final retailPrice = (item['retail_price'] as num).toDouble();
 
-      total += qty * price;
+
       total += qty * retailPrice;
     }
     return total;

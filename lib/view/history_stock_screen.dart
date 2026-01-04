@@ -181,7 +181,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
             .from('products')
             .insert({
               'name': product['name'] ?? 'UNKNOWN',
-              'price': product['price'] ?? 0.0,
               'cost_price': product['cost_price'] ?? 0.0,
               'retail_price': product['retail_price'] ?? 0.0,
               'stock': product['stock'] ?? 0,

@@ -42,7 +42,6 @@ class TransactionItemService {
         'product_id': item.productId,
         'product_name': item.productName,
         'qty': item.qty,
-        'price': item.price,
         'cost_price': item.costPrice,
         'retail_price': item.retailPrice,
         'is_promo': item.isPromo ? 1 : 0,

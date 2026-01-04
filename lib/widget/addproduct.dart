@@ -26,7 +26,6 @@ class _AddProductPageState extends State<AddProductPage> {
 
   void saveProduct() async {
     final name = nameController.text.trim();
-    final price = double.tryParse(priceController.text.trim()) ?? 0;
     final costPrice = double.tryParse(costPriceController.text.trim()) ?? 0;
     final retailPrice = double.tryParse(retailPriceController.text.trim()) ?? 0;
     final stock = int.tryParse(stockController.text.trim()) ?? 0;
@@ -47,7 +46,7 @@ class _AddProductPageState extends State<AddProductPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Product $name price: $price stock: $stock already exists.',
+            'Product $name price: $retailPrice stock: $stock already exists.',
           ),
         ),
       );
@@ -67,7 +66,6 @@ class _AddProductPageState extends State<AddProductPage> {
       // 1️⃣ Save offline first
       final localId = await productService.insertProductOffline(
         name: name,
-        price: price,
         costPrice: costPrice,
         retailPrice: retailPrice,
         stock: stock,
@@ -143,11 +141,6 @@ class _AddProductPageState extends State<AddProductPage> {
             TextField(
               controller: nameController,
               decoration: const InputDecoration(labelText: "Product Name"),
-            ),
-            TextField(
-              controller: priceController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: "Price"),
             ),
                  TextField(
               controller: costPriceController,

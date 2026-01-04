@@ -114,7 +114,7 @@ class LocalDatabase {
   CREATE TABLE IF NOT EXISTS products_offline (
      id INTEGER PRIMARY KEY,
         name TEXT NOT NULL,
-        price REAL NOT NULL,
+      
         stock INTEGER NOT NULL,
         is_promo INTEGER DEFAULT 0,
         other_qty INTEGER,
@@ -127,9 +127,9 @@ class LocalDatabase {
       CREATE TABLE products(
         id INTEGER PRIMARY KEY,
         name TEXT NOT NULL,
-        price REAL NOT NULL,
+    
         cost_price REAL DEFAULT 0,
-        retail_price REAL DEFAULT price,
+        retail_price REAL NUT NULL,
         stock INTEGER NOT NULL,
         is_promo INTEGER DEFAULT 0,
         other_qty INTEGER DEFAULT 0,
@@ -190,9 +190,8 @@ CREATE TABLE transaction_items(
   product_id INTEGER NOT NULL,
   product_name TEXT NOT NULL,
   qty INTEGER NOT NULL,
-  price REAL NOT NULL,
   cost_price REAL DEFAULT 0,
-  retail_price REAL DEFAULT price,
+  retail_price REAL NOT NULL,
   is_promo INTEGER DEFAULT 0,
   other_qty INTEGER,
   is_synced INTEGER DEFAULT 0,
@@ -244,7 +243,6 @@ CREATE TABLE transaction_items(
     SELECT 
       ti.product_name,
       ti.qty,
-      ti.price
       ti.retail_price
       ti.cost_price,
     FROM transaction_items ti
@@ -350,7 +348,7 @@ CREATE TABLE transaction_items(
       ti.product_id,
       ti.product_name,
       ti.qty,
-      ti.price,
+
       ti.retail_price,
       ti.cost_price,
       ti.is_promo,
@@ -410,7 +408,7 @@ CREATE TABLE transaction_items(
     // ✅ Query transaction items with joined product info and transaction totals
     return await db.rawQuery(
       '''
-    SELECT ti.id as item_id, ti.transaction_id, ti.qty, ti.price,ti.retail_price,ti.cost_price, ti.is_promo, 
+    SELECT ti.id as item_id, ti.transaction_id, ti.qty,ti.retail_price,ti.cost_price, ti.is_promo, 
            p.name as product_name, t.total, t.cash, t.change, t.created_at
     FROM transaction_items ti
     INNER JOIN transactions t ON t.id = ti.transaction_id
@@ -572,7 +570,6 @@ CREATE TABLE transaction_items(
   Future<int> insertProduct({
     required int id,
     required String name,
-    required double price,
     required double retailPrice,
     required double costPrice, // <- add this
     required int stock,
@@ -587,7 +584,6 @@ CREATE TABLE transaction_items(
       {
         'id': id,
         'name': name,
-        'price': price,
         'retail_price': retailPrice,
         'cost_price': costPrice,
         'stock': stock,
@@ -625,7 +621,6 @@ CREATE TABLE transaction_items(
   Future<void> updateProduct({
     required int id,
     required int stock,
-    double? price,
     double? retailPrice,
     double? costPrice,
     bool? isPromo,
@@ -636,7 +631,6 @@ CREATE TABLE transaction_items(
       'products',
       {
         'stock': stock,
-        'price': price,
         'retail_price': retailPrice,
         'cost_price': costPrice,
         'is_promo': isPromo == true ? 1 : 0,
@@ -735,7 +729,6 @@ Future<int> insertTransactionItem({
   required int productId,
   required String productName,
   required int qty,
-  required double price,
   required double costPrice,
   required double retailPrice,
   bool isPromo = false,
@@ -752,7 +745,6 @@ Future<int> insertTransactionItem({
     print("  product_id: $productId");
     print("  product_name: $productName");
     print("  qty: $qty");
-    print("  price: $price");
     print("  cost_price: $costPrice");
     print("  retail_price: $retailPrice");
     print("  is_promo: ${isPromo ? 1 : 0}");
@@ -768,7 +760,6 @@ Future<int> insertTransactionItem({
         'product_id': productId,
         'product_name': productName,
         'qty': qty,
-        'price': price,
         'cost_price': costPrice,
         'retail_price': retailPrice,
         'is_promo': isPromo ? 1 : 0,
@@ -891,7 +882,6 @@ Future<int> insertTransactionItem({
   Future<void> upsertProductByClientUuid({
     required String clientUuid,
     required String name,
-    required double price,
     required double cost_price,
     required double retail_price, 
     required int stock,
@@ -910,7 +900,6 @@ Future<int> insertTransactionItem({
     if (existing.isEmpty) {
       await db.insert('products', {
         'name': name,
-        'price': price,
         'cost_price': cost_price,
         'retail_price': retail_price,
         'stock': stock,
@@ -924,7 +913,6 @@ Future<int> insertTransactionItem({
         'products',
         {
           'name': name,
-          'price': price,
           'cost_price': cost_price,
           'retail_price': retail_price,
           'stock': stock,
@@ -955,17 +943,11 @@ Future<void> printAllTransactionItems() async {
 }
 
 
-
-
-
-
-
   Future<int> insertTransactionItemOffline({
     required int transactionId,
     required int productId,
     required String productName,
     required int qty,
-    required double price,
     required double costPrice,
     required double retailPrice,
     bool isPromo = false,
@@ -985,7 +967,6 @@ Future<void> printAllTransactionItems() async {
         'product_id': productId,
         'product_name': productName,
         'qty': qty,
-        'price': price,
         'cost_price': costPrice,
         'retail_price': retailPrice,
         'is_promo': isPromo ? 1 : 0,
