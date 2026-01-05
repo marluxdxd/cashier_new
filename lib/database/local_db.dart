@@ -110,6 +110,20 @@ class LocalDatabase {
     value TEXT
   )
 ''');
+   await db.execute('''
+  CREATE TABLE IF NOT EXISTS transaction_promos(
+       id INTEGER PRIMARY KEY AUTOINCREMENT,
+  transaction_id INTEGER NOT NULL,
+  product_id INTEGER NOT NULL,
+  product_name TEXT NOT NULL,
+  promo_count INTEGER NOT NULL DEFAULT 0,
+  retail_price REAL NOT NULL,
+  total REAL NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  is_synced INTEGER DEFAULT 0,
+  FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE
+)
+''');
 
     await db.execute('''
   CREATE TABLE IF NOT EXISTS products_offline (
@@ -168,14 +182,14 @@ class LocalDatabase {
     await db.execute('''
 CREATE TABLE product_stock_history (
   id INTEGER PRIMARY KEY,
-    transaction_id INTEGER,        -- ✅ ADD THIS
+  transaction_id INTEGER,       
   product_id INTEGER,
-  product_name TEXT,       -- ✅ NEW
+  product_name TEXT,      
   old_stock INTEGER,
   qty_changed INTEGER,
   new_stock INTEGER,
-  change_type TEXT,        -- ✅ NEW
-  trans_date TEXT,         -- ✅ NEW
+  change_type TEXT,     
+  trans_date TEXT,       
   type TEXT,  
   created_at TEXT,
   product_client_uuid TEXT,
@@ -189,7 +203,6 @@ CREATE TABLE transaction_items(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   transaction_id INTEGER NOT NULL,
   product_id INTEGER NOT NULL,
-  promo_count INTEGER DEFAULT 0,
   product_name TEXT NOT NULL,
   qty INTEGER NOT NULL,
   cost_price REAL DEFAULT 0,
@@ -735,14 +748,13 @@ Future<int> insertTransactionItem({
   int otherQty = 0,
   int isSynced = 0, // 0 = not synced, 1 = synced
   String? productClientUuid,
-  int promoCount = 0,
+
 }) async {
   final db = await database;
 
   try {
     print("🟡 INSERTING transaction_items:");
     print("🟡 transaction_id: $transactionId");
-    print("  promo_count: $promoCount");
     print("  product_id: $productId");
     print("  product_name: $productName");
     print("  qty: $qty");
@@ -762,7 +774,6 @@ Future<int> insertTransactionItem({
         'transaction_id': transactionId,
         'product_id': productId,
         'product_name': productName,
-        'promo_count': promoCount,
         'qty': qty,
         'cost_price': costPrice,
         'retail_price': retailPrice,
