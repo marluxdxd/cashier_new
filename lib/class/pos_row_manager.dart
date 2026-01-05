@@ -12,10 +12,7 @@ class POSRowManager {
   }
 
   late List<POSRow> rows;
-
-  // 🔥 TRACK PROMO COUNT PER PRODUCT
-  final Map<int, int> productPromoCount = {}; // key: productId, value: count
-
+int promoCount = 0; // 🔥 PROMO COUNTER
   // ================= ADD EMPTY ROW =================
   void addEmptyRow() {
     rows.add(POSRow());
@@ -25,14 +22,13 @@ class POSRowManager {
   // ================= RESET (IMPORTANT) =================
   void reset() {
     rows = [POSRow()];
-    productPromoCount.clear();
   }
 
-  void reset_promoCount() {
-    productPromoCount.clear();
-    print("♻️ RESET → promo counts cleared");
-    rows = [POSRow()];
-  }
+ void reset_promoCount() {
+  promoCount = 0;
+  print("♻️ RESET → promoCount reset to 0");
+  rows = [POSRow()];
+}
 
   // ================= AUTO FILL ROWS =================
   Future<void> autoFillRows(VoidCallback onUpdate) async {
@@ -51,20 +47,14 @@ class POSRowManager {
 
       row.product = selectedProduct;
       row.isPromo = selectedProduct.isPromo;
+      row.otherQty = selectedProduct.isPromo ? selectedProduct.otherQty : 0;
       row.qty = 0;
 
-      // ✅ HANDLE PROMO COUNT PER PRODUCT
-      if (row.isPromo) {
-        final currentCount = productPromoCount[selectedProduct.id] ?? 0;
-        productPromoCount[selectedProduct.id] = currentCount + 1;
-        row.otherQty = productPromoCount[selectedProduct.id]!;
-        print(
-            "🎁 PROMO ADDED → ID: ${row.product!.id}, Name: ${row.product!.name}, Count: ${row.otherQty}");
-      } else {
-        row.otherQty = 0;
-      }
-
-      onUpdate(); // 🔥 update UI immediately
+ if (row.isPromo && row.product != null) {
+  promoCount++;
+  print("🎁 PROMO ADDED → ID: ${row.product!.id}, Name: ${row.product!.name}, Count: $promoCount");
+}
+      onUpdate(); // 🔥 IMPORTANT: update UI immediately
 
       if (row == rows.last) addEmptyRow();
 
@@ -93,9 +83,19 @@ class POSRowManager {
   }) {
     double displayPrice = 0;
     if (row.product != null) {
-      displayPrice =
-          row.isPromo ? row.product!.retailPrice : row.product!.retailPrice * row.qty;
+      displayPrice = row.isPromo
+          ? row.product!.retailPrice
+          : row.product!.retailPrice * row.qty;
+
+    
     }
+
+    //  double displayPrice2 = 0;
+    //  if (row.product != null) {
+    //    displayPrice2 = row.isPromo
+    //        ? row.product!.retailPrice
+    //        : row.product!.retailPrice * row.qty;
+    //  }     
 
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 6),
@@ -108,36 +108,34 @@ class POSRowManager {
               onTap: () async {
                 final bool isReselect = row.product != null;
 
+                // 🟢 AUTO FILL — ONLY FOR EMPTY ROW
                 if (isAutoNextRowOn && !isReselect) {
                   await autoFillRows(onUpdate);
                   return;
                 }
 
-                final selectedProduct = await showModalBottomSheet<Productclass>(
-                  context: context,
-                  barrierColor: Colors.black.withOpacity(0.0),
-                  isScrollControlled: true,
-                  builder: (_) => Productbottomsheet(),
-                );
+                // 🟡 PRODUCT SELECTION (initial OR reselect)
+                final selectedProduct =
+                    await showModalBottomSheet<Productclass>(
+                      context: context,
+                      barrierColor: Colors.black.withOpacity(0.0),
+                      isScrollControlled: true,
+                      builder: (_) => Productbottomsheet(),
+                    );
 
+                // ❌ User closed bottomsheet
                 if (selectedProduct == null) return;
 
+                // ✅ APPLY PRODUCT
                 row.product = selectedProduct;
                 row.isPromo = selectedProduct.isPromo;
+                row.otherQty = selectedProduct.isPromo
+                    ? selectedProduct.otherQty
+                    : 0;
                 row.qty = 0;
-
-                if (row.isPromo) {
-                  final currentCount = productPromoCount[selectedProduct.id] ?? 0;
-                  productPromoCount[selectedProduct.id] = currentCount + 1;
-                  row.otherQty = productPromoCount[selectedProduct.id]!;
-                  print(
-                      "🎁 PROMO ADDED → ID: ${row.product!.id}, Name: ${row.product!.name}, Count: ${row.otherQty}");
-                } else {
-                  row.otherQty = 0;
-                }
-
                 onUpdate();
 
+                // 📦 QTY BOTTOMSHEET
                 if (!row.isPromo) {
                   final qty = await showModalBottomSheet<int>(
                     context: context,
@@ -151,13 +149,25 @@ class POSRowManager {
                   }
                 }
 
+                // ➕ ALWAYS CONTINUE AUTO NEXT ROW
                 if (isAutoNextRowOn) {
                   if (row == rows.last) {
                     addEmptyRow();
+                    print("AUTO FILL: New empty row added. Total rows = ${rows.length}");
                     onUpdate();
                   }
+
+                  // 🔹 AUTO FOCUS: scroll to last row
+                  Future.delayed(Duration(milliseconds: 100), () {
+                    Scrollable.ensureVisible(
+                      context, // provide the row context here
+                      duration: Duration(milliseconds: 300),
+                      alignment: 0.5,
+                    );
+                  });
                 }
               },
+
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -202,17 +212,18 @@ class POSRowManager {
           IconButton(
             icon: const Icon(Icons.delete, color: Colors.red),
             onPressed: () {
-              final removedRow = rows[index];
 
-              if (removedRow.isPromo && removedRow.product != null) {
-                final productId = removedRow.product!.id;
-                final currentCount = productPromoCount[productId] ?? 1;
-                productPromoCount[productId] = currentCount - 1;
-                print("❌ PROMO REMOVED → ID: $productId, count now: ${productPromoCount[productId]}");
-              }
+                final removedRow = rows[index];
+
+  if (removedRow.isPromo) {
+    promoCount--;
+    print("❌ PROMO REMOVED → count: $promoCount");
+  }
+
+
 
               rows.removeAt(index);
-              if (rows.isEmpty) reset();
+              if (rows.isEmpty)  reset();
               onUpdate();
             },
           ),
@@ -222,7 +233,7 @@ class POSRowManager {
   }
 
   // ================= TOTAL BILL =================
-  double get totalBill {
+   double get totalBill {
     double total = 0;
     for (var row in rows) {
       if (row.product != null) {
