@@ -12,7 +12,7 @@ class POSRowManager {
   }
 
   late List<POSRow> rows;
-int promoCount = 0; // 🔥 PROMO COUNTER
+Map<int, int> promoCountByProduct = {};
   // ================= ADD EMPTY ROW =================
   void addEmptyRow() {
     rows.add(POSRow());
@@ -24,11 +24,12 @@ int promoCount = 0; // 🔥 PROMO COUNTER
     rows = [POSRow()];
   }
 
- void reset_promoCount() {
-  promoCount = 0;
-  print("♻️ RESET → promoCount reset to 0");
+void reset2() {
   rows = [POSRow()];
+  promoCountByProduct.clear(); // ✅ RESET ALL PROMO COUNTS
+  print("♻️ RESET → rows & promo counts cleared");
 }
+
 
   // ================= AUTO FILL ROWS =================
   Future<void> autoFillRows(VoidCallback onUpdate) async {
@@ -50,10 +51,17 @@ int promoCount = 0; // 🔥 PROMO COUNTER
       row.otherQty = selectedProduct.isPromo ? selectedProduct.otherQty : 0;
       row.qty = 0;
 
- if (row.isPromo && row.product != null) {
-  promoCount++;
-  print("🎁 PROMO ADDED → ID: ${row.product!.id}, Name: ${row.product!.name}, Count: $promoCount");
+if (row.isPromo && row.product != null) {
+  final productId = row.product!.id;
+
+  promoCountByProduct[productId] =
+      (promoCountByProduct[productId] ?? 0) + 1;
+
+  print(
+    "🎁 PROMO ADDED → ID:$productId count:${promoCountByProduct[productId]}",
+  );
 }
+
       onUpdate(); // 🔥 IMPORTANT: update UI immediately
 
       if (row == rows.last) addEmptyRow();
@@ -215,10 +223,23 @@ int promoCount = 0; // 🔥 PROMO COUNTER
 
                 final removedRow = rows[index];
 
-  if (removedRow.isPromo) {
-    promoCount--;
-    print("❌ PROMO REMOVED → count: $promoCount");
+if (removedRow.isPromo && removedRow.product != null) {
+  final productId = removedRow.product!.id;
+
+  if (promoCountByProduct.containsKey(productId)) {
+    promoCountByProduct[productId] =
+        promoCountByProduct[productId]! - 1;
+
+    if (promoCountByProduct[productId]! <= 0) {
+      promoCountByProduct.remove(productId);
+    }
+
+    print(
+      "❌ PROMO REMOVED → ID:$productId count:${promoCountByProduct[productId] ?? 0}",
+    );
   }
+}
+
 
 
 

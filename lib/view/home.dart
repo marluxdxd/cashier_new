@@ -269,204 +269,219 @@ class _HomeState extends State<Home> {
                 border: OutlineInputBorder(),
               ),
               onSubmitted: (_) async {
-                if (isSyncingOnline) return;
-                final localDbPromo = LocalDbTransactionpromo();
-                final double finalTotal = posManager.totalBill; // ✅ SAVE FIRST
-                double cash = double.tryParse(customerCashController.text) ?? 0;
+  if (isSyncingOnline) return;
 
-                if (!transactionService.isCashSufficient(
-                  posManager.totalBill,
-                  cash,
-                )) {
-                  print("Cash is not enough yet.");
-                  return;
-                }
+  final localDbPromo = LocalDbTransactionpromo();
+  final double finalTotal = posManager.totalBill;
+  double cash = double.tryParse(customerCashController.text) ?? 0;
 
-                setState(() => isSyncingOnline = true);
+  if (!transactionService.isCashSufficient(finalTotal, cash)) {
+    print("Cash is not enough yet.");
+    return;
+  }
 
-                final bool online =
-                    await InternetConnectionChecker().hasConnection;
-                final localDb = LocalDatabase();
-                double change = transactionService.calculateChange(
-                  finalTotal,
-                  cash,
-                );
-                String timestamp = getPhilippineTimestampFormatted();
+  setState(() => isSyncingOnline = true);
 
-                // ---------------- COMBINE SAME PRODUCTS ----------------
-                final Map<int, POSRow> combinedItems = {};
+  final bool online =
+      await InternetConnectionChecker().hasConnection;
 
-                for (final row in posManager.rows) {
-                  if (row.product == null) continue;
+  final localDb = LocalDatabase();
+  double change =
+      transactionService.calculateChange(finalTotal, cash);
+  String timestamp = getPhilippineTimestampFormatted();
 
-                  final product = row.product!;
-                  final qty = row.isPromo ? row.otherQty : row.qty;
+  // ---------------- COMBINE SAME PRODUCTS ----------------
+  final Map<int, POSRow> combinedItems = {};
 
-                  if (combinedItems.containsKey(product.id)) {
-                    combinedItems[product.id]!.qty += qty;
-                  } else {
-                    combinedItems[product.id] = POSRow(
-                      product: product,
-                      qty: qty,
-                      isPromo: row.isPromo,
-                      otherQty: row.otherQty,
-                    );
-                  }
-                }
+  for (final row in posManager.rows) {
+    if (row.product == null) continue;
 
-                // ---------------- SHOW UI IMMEDIATELY ----------------
-                final int savedPromoCount = posManager.promoCount;
-                if (mounted) {
-                  print("Promo count before reset: $savedPromoCount");
-                  showDialog(
-                    context: context,
-                    builder: (_) => Sukli(change: change, timestamp: timestamp),
-                  );
-                  customerCashController.clear();
-                  posManager.reset();
-                  posManager.reset_promoCount();
-                  _updateUI();
-                }
+    final product = row.product!;
+    final qty = row.isPromo ? row.otherQty : row.qty;
 
-                // ---------------- PROCESS TRANSACTION IN BACKGROUND ----------------
-                unawaited(
-                  Future(() async {
-                    try {
-                      final String clientUuid = const Uuid().v4();
+    if (combinedItems.containsKey(product.id)) {
+      combinedItems[product.id]!.qty += qty;
+    } else {
+      combinedItems[product.id] = POSRow(
+        product: product,
+        qty: qty,
+        isPromo: row.isPromo,
+        otherQty: row.otherQty,
+      );
+    }
+  }
 
-                      final int localTransactionId = await localDb
-                          .insertTransaction(
-                            total: finalTotal,
-                            cash: cash,
-                            change: change,
-                            createdAt: getPhilippineTimestampFormatted(),
-                            isSynced: online ? 1 : 0,
-                            clientUuid: clientUuid,
-                          );
+  // ---------------- SAVE PROMO COUNTS PER PRODUCT ----------------
+  final Map<int, int> savedPromoCounts =
+      Map.from(posManager.promoCountByProduct);
 
-                      int? onlineTransactionId;
+  // ---------------- SHOW UI IMMEDIATELY ----------------
+  if (mounted) {
+    showDialog(
+      context: context,
+      builder: (_) => Sukli(
+        change: change,
+        timestamp: timestamp,
+      ),
+    );
+    customerCashController.clear();
+    posManager.reset2();
+    posManager.reset();
+    _updateUI();
+  }
 
-                      if (online) {
-                        onlineTransactionId = await transactionService
-                            .saveTransaction(
-                              total: finalTotal,
-                              cash: cash,
-                              change: change,
-                              clientUuid: clientUuid,
-                            );
+  // ---------------- PROCESS TRANSACTION IN BACKGROUND ----------------
+  unawaited(
+    Future(() async {
+      try {
+        final String clientUuid = const Uuid().v4();
 
-                        await localDb.updateTransactionSupabaseId(
-                          localId: localTransactionId,
-                          supabaseId: onlineTransactionId,
-                        );
-                      }
-                      bool promoInserted = false; // 👈 add BEFORE map()
-                      final futures = combinedItems.values.map((row) async {
-                        final product = row.product!;
-                        final qtySold = row.qty;
-                        // final promoCount = posManager.promoCount;
-                        int? oldStock = await localDb.getProductStock(
-                          product.id,
-                        );
-                        int newStock = oldStock != null
-                            ? oldStock - qtySold
-                            : 0;
-                        
-                        await Future.wait([
-
-                          // ✅ INSERT PROMO ONCE ONLY
-    if (row.isPromo && savedPromoCount > 0 && !promoInserted)
-      () async {
-        promoInserted = true;
-
-        print('🔥 INSERT PROMO | tx:$localTransactionId count:$savedPromoCount');
-
-        await localDbPromo.insertTransactionPromo(
-          transactionId: localTransactionId,
-          productId: product.id,
-          productName: product.name,
-          promoCount: savedPromoCount, // ✅ CORRECT
-          retailPrice: product.retailPrice,
+        final int localTransactionId =
+            await localDb.insertTransaction(
+          total: finalTotal,
+          cash: cash,
+          change: change,
+          createdAt: timestamp,
           isSynced: online ? 1 : 0,
+          clientUuid: clientUuid,
         );
-      }(),
-                     
-                          localDb.insertTransactionItem(
-                            transactionId: localTransactionId,
-                            productId: product.id,
-                            productName: product.name,
-                            qty: qtySold,
-                            retailPrice: product.retailPrice,
-                            costPrice: product.costPrice,
-                            isPromo: product.isPromo,
-                            otherQty: product.otherQty,
-                            productClientUuid: product.productClientUuid,
-                          ),
-                          if (oldStock != null)
-                            localDb.updateProductStock(product.id, newStock),
-                          if (oldStock != null)
-                            localDb.updateProduct(
-                              id: product.id,
-                              stock: newStock,
-                              retailPrice: product.retailPrice,
-                              costPrice: product.costPrice,
-                              isPromo: product.isPromo,
-                              otherQty: product.otherQty,
-                            ),
-                          if (oldStock != null)
-                            localDb.insertStockHistory(
-                              transactionId: localTransactionId,
-                              id: generateUniqueId(prefix: "H").hashCode.abs(),
-                              productId: product.id,
-                              productName: product.name,
-                              oldStock: oldStock!,
-                              qtyChanged: qtySold,
-                              newStock: newStock,
-                              type: 'SALE',
-                              createdAt: timestamp,
-                              synced: online ? 1 : 0,
-                              productClientUuid: product.productClientUuid,
-                            ),
-                          localDb.insertStockUpdateQueue1(
-                            productId: product.id,
-                            qty: qtySold,
-                            type: 'SALE',
-                          ),
-                          if (online && onlineTransactionId != null)
-                            Future.wait([
-                              productService.syncSingleProductOnline(
-                                product.id,
-                              ),
-                              transactionService.saveTransactionItem(
-                                transactionId: onlineTransactionId,
-                                product: product,
-                                qty: qtySold,
-                                isPromo: product.isPromo,
-                                otherQty: product.otherQty,
-                              ),
-                            ]),
-                        ]);
-                      }).toList();
 
-                      await Future.wait(futures);
+        int? onlineTransactionId;
 
-                      if (online) {
-                        await productService.syncOnlineProducts();
-                        await productService.syncOfflineStockHistory();
-                        await productService.syncOfflineProducts();
-                      }
+        if (online) {
+          onlineTransactionId =
+              await transactionService.saveTransaction(
+            total: finalTotal,
+            cash: cash,
+            change: change,
+            clientUuid: clientUuid,
+          );
 
-                      print(
-                        "✅ TRANSACTION SUCCESS (background sync completed)",
-                      );
-                    } catch (e) {
-                      print("❌ Error saving transaction: $e");
-                    } finally {
-                      if (mounted) setState(() => isSyncingOnline = false);
-                    }
-                  }),
+          await localDb.updateTransactionSupabaseId(
+            localId: localTransactionId,
+            supabaseId: onlineTransactionId,
+          );
+        }
+
+        // ✅ TRACK PROMO INSERT PER PRODUCT.ID
+        final Set<int> insertedPromoProducts = {};
+
+        final futures = combinedItems.values.map((row) async {
+          final product = row.product!;
+          final qtySold = row.qty;
+
+          final promoCount =
+              savedPromoCounts[product.id] ?? 0;
+
+          int? oldStock =
+              await localDb.getProductStock(product.id);
+
+          int newStock = oldStock != null
+              ? oldStock - qtySold
+              : 0;
+
+          await Future.wait([
+            // ---------------- INSERT PROMO (ONCE PER PRODUCT) ----------------
+            if (row.isPromo &&
+                promoCount > 0 &&
+                !insertedPromoProducts.contains(product.id))
+              () async {
+                insertedPromoProducts.add(product.id);
+
+                print(
+                  '🔥 INSERT PROMO | tx:$localTransactionId '
+                  'product:${product.id} count:$promoCount',
                 );
-              },
+
+                await localDbPromo.insertTransactionPromo(
+                  transactionId: localTransactionId,
+                  productId: product.id,
+                  productName: product.name,
+                  promoCount: promoCount,
+                  retailPrice: product.retailPrice,
+                  isSynced: online ? 1 : 0,
+                );
+              }(),
+
+            // ---------------- INSERT TRANSACTION ITEM ----------------
+            localDb.insertTransactionItem(
+              transactionId: localTransactionId,
+              productId: product.id,
+              productName: product.name,
+              qty: qtySold,
+              retailPrice: product.retailPrice,
+              costPrice: product.costPrice,
+              isPromo: product.isPromo,
+              otherQty: product.otherQty,
+              productClientUuid: product.productClientUuid,
+            ),
+
+            if (oldStock != null)
+              localDb.updateProductStock(
+                product.id,
+                newStock,
+              ),
+
+            if (oldStock != null)
+              localDb.insertStockHistory(
+                transactionId: localTransactionId,
+                id: generateUniqueId(prefix: "H")
+                    .hashCode
+                    .abs(),
+                productId: product.id,
+                productName: product.name,
+                oldStock: oldStock,
+                qtyChanged: qtySold,
+                newStock: newStock,
+                type: 'SALE',
+                createdAt: timestamp,
+                synced: online ? 1 : 0,
+                productClientUuid:
+                    product.productClientUuid,
+              ),
+
+            localDb.insertStockUpdateQueue1(
+              productId: product.id,
+              qty: qtySold,
+              type: 'SALE',
+            ),
+
+            if (online && onlineTransactionId != null)
+              Future.wait([
+                productService.syncSingleProductOnline(
+                  product.id,
+                ),
+                transactionService.saveTransactionItem(
+                  transactionId: onlineTransactionId,
+                  product: product,
+                  qty: qtySold,
+                  isPromo: product.isPromo,
+                  otherQty: product.otherQty,
+                ),
+              ]),
+          ]);
+        }).toList();
+
+        await Future.wait(futures);
+
+        if (online) {
+          await productService.syncOnlineProducts();
+          await productService.syncOfflineStockHistory();
+          await productService.syncOfflineProducts();
+        }
+
+        print("✅ TRANSACTION SUCCESS");
+      } catch (e) {
+        print("❌ Error saving transaction: $e");
+      } finally {
+        if (mounted) {
+          setState(() => isSyncingOnline = false);
+        }
+      }
+    }),
+  );
+},
+
             ),
           ],
         ),
