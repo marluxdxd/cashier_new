@@ -1022,6 +1022,8 @@ Future<void> printAllTransactionItems() async {
     await txn.delete('product_stock_history');
     await txn.delete('transaction_items');
     await txn.delete('transactions');
+    await txn.delete('transaction_promos');
+    // await txn.delete('products');
     // await txn.delete('products');
 
     // Reset AUTOINCREMENT counters
