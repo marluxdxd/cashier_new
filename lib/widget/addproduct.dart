@@ -12,15 +12,25 @@ class _AddProductPageState extends State<AddProductPage> {
   final nameController = TextEditingController();
   final priceController = TextEditingController();
   final costPriceController = TextEditingController();
+  final byPiecesController = TextEditingController();
   final retailPriceController = TextEditingController();
   final stockController = TextEditingController();
   final promoQtyController = TextEditingController();
-
+double pricePerPiece = 0;
   final productService = ProductService();
 
   bool isLoading = false;
   bool isPromo = false; // default wala promo
   int otherQty = 0;
+
+void computePricePerPiece() {
+  final costPrice = double.tryParse(costPriceController.text) ?? 0;
+  final pieces = int.tryParse(byPiecesController.text) ?? 0;
+
+  setState(() {
+    pricePerPiece = pieces > 0 ? costPrice / pieces : 0;
+  });
+}
 
   /// ------------------- SAVE PRODUCT ------------------- ///
 
@@ -142,11 +152,38 @@ class _AddProductPageState extends State<AddProductPage> {
               controller: nameController,
               decoration: const InputDecoration(labelText: "Product Name"),
             ),
-                 TextField(
-              controller: costPriceController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: "Cost Price"),
-            ),
+             TextField(
+  controller: costPriceController,
+  keyboardType: TextInputType.number,
+  decoration: const InputDecoration(labelText: "Cost Price"),
+  onChanged: (_) => computePricePerPiece(),
+),
+
+             TextField(
+  controller: byPiecesController,
+  keyboardType: TextInputType.number,
+  decoration: const InputDecoration(labelText: "By Pieces"),
+  onChanged: (_) => computePricePerPiece(),
+),
+
+            SizedBox(height: 10,),
+         Row(
+  mainAxisAlignment: MainAxisAlignment.start,
+  children: [
+    Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey),
+        borderRadius: BorderRadius.circular(4),
+        color: Colors.grey[200],
+      ),
+      child: Text(
+        'Price per piece: ₱${pricePerPiece.toStringAsFixed(2)}',
+      ),
+    ),
+  ],
+),
+
             TextField(
               controller: retailPriceController,
               keyboardType: TextInputType.number,
