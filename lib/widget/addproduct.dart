@@ -9,59 +9,87 @@ class AddProductPage extends StatefulWidget {
 }
 
 class _AddProductPageState extends State<AddProductPage> {
+  double pricePerPiece = 0;
+  double priceInterest = 0;
+
   final nameController = TextEditingController();
-  final priceController = TextEditingController();
   final costPriceController = TextEditingController();
   final byPiecesController = TextEditingController();
   final retailPriceController = TextEditingController();
-  final stockController = TextEditingController();
   final promoQtyController = TextEditingController();
-double pricePerPiece = 0;
+
   final productService = ProductService();
 
   bool isLoading = false;
-  bool isPromo = false; // default wala promo
+  bool isPromo = false;
   int otherQty = 0;
 
-void computePricePerPiece() {
+  /// ------------------- CALCULATIONS ------------------- ///
+  /// 
+
+  void computePromoLogic() {
   final costPrice = double.tryParse(costPriceController.text) ?? 0;
   final pieces = int.tryParse(byPiecesController.text) ?? 0;
+  final qtyPromo = int.tryParse(promoQtyController.text) ?? 0;
+  final retailPrice = double.tryParse(retailPriceController.text) ?? 0;
+
+  if (pieces == 0 || qtyPromo == 0) {
+    setState(() {
+      pricePerPiece = 0;
+      priceInterest = 0;
+    });
+    return;
+  }
+
+  // price per piece
+  final ppp = costPrice / pieces;
+
+  // compute how many promo sets
+  final promoSets = (pieces ~/ qtyPromo); // integer divide
+
+  // compute total retail
+  final totalRetail = promoSets * retailPrice;
+
+  // compute interest
+  final interest = totalRetail - costPrice;
 
   setState(() {
-    pricePerPiece = pieces > 0 ? costPrice / pieces : 0;
+    pricePerPiece = ppp;
+    priceInterest = interest;
   });
 }
 
-  /// ------------------- SAVE PRODUCT ------------------- ///
+  void computePricePerPiece() {
+    final costPrice = double.tryParse(costPriceController.text) ?? 0;
+    final pieces = int.tryParse(byPiecesController.text) ?? 0;
 
+    setState(() {
+      pricePerPiece = pieces > 0 ? costPrice / pieces : 0;
+    });
+
+    computeInterest(); // always update interest
+  }
+
+void computeInterest() {
+  if (isPromo) {
+    computePromoLogic();
+    return;
+  }
+
+  final retailPrice = double.tryParse(retailPriceController.text) ?? 0;
+
+  setState(() {
+    priceInterest = retailPrice - pricePerPiece;
+  });
+}
+
+
+  /// ------------------- SAVE PRODUCT ------------------- ///
   void saveProduct() async {
     final name = nameController.text.trim();
     final costPrice = double.tryParse(costPriceController.text.trim()) ?? 0;
     final retailPrice = double.tryParse(retailPriceController.text.trim()) ?? 0;
-    final stock = int.tryParse(stockController.text.trim()) ?? 0;
     otherQty = int.tryParse(promoQtyController.text.trim()) ?? 0;
-    // Check internet connectivity
-    final online = await productService.isOnline1();
-    if (!online) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("No internet connection. Cannot save product."),
-        ),
-      );
-      return; // ⛔ stop EVERYTHING
-    }
-    // 🔴 CHECK DUPLICATE NAME
-    final exists = await productService.productNameExists(name);
-    if (exists) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Product $name price: $retailPrice stock: $stock already exists.',
-          ),
-        ),
-      );
-      return;
-    }
 
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -70,25 +98,44 @@ void computePricePerPiece() {
       return;
     }
 
+    final online = await productService.isOnline1();
+    if (!online) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("No internet connection. Cannot save product."),
+        ),
+      );
+      return;
+    }
+
+    final exists = await productService.productNameExists(name);
+    if (exists) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Product $name price: $retailPrice already exists.',
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() => isLoading = true);
 
     try {
-      // 1️⃣ Save offline first
       final localId = await productService.insertProductOffline(
         name: name,
         costPrice: costPrice,
         retailPrice: retailPrice,
-        stock: stock,
+        stock: 0,
         isPromo: isPromo,
         otherQty: otherQty,
       );
 
-      // 2️⃣ Check connectivity and sync all offline products
       if (await productService.isOnline2()) {
         await productService.syncOnlineProducts();
       }
 
-      // 3️⃣ Sync this single product immediately if online
       if (await productService.isOnline1()) {
         await productService.syncSingleProduct(localId);
       }
@@ -105,10 +152,18 @@ void computePricePerPiece() {
         ),
       );
 
+      // Clear fields
       nameController.clear();
-      priceController.clear();
-      stockController.clear();
+      costPriceController.clear();
+      byPiecesController.clear();
+      retailPriceController.clear();
       promoQtyController.clear();
+
+      setState(() {
+        pricePerPiece = 0;
+        priceInterest = 0;
+        isPromo = false;
+      });
     } catch (e) {
       setState(() => isLoading = false);
       ScaffoldMessenger.of(
@@ -120,8 +175,9 @@ void computePricePerPiece() {
   @override
   void dispose() {
     nameController.dispose();
-    priceController.dispose();
-    stockController.dispose();
+    costPriceController.dispose();
+    byPiecesController.dispose();
+    retailPriceController.dispose();
     promoQtyController.dispose();
     super.dispose();
   }
@@ -130,7 +186,7 @@ void computePricePerPiece() {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Add Product")),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
@@ -141,58 +197,80 @@ void computePricePerPiece() {
                 setState(() => isPromo = val ?? false);
               },
             ),
-            if (isPromo)
-              TextField(
-                controller: promoQtyController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "Qty for Promo"),
-              ),
+           if (isPromo)
+  TextField(
+    controller: promoQtyController,
+    keyboardType: TextInputType.number,
+    decoration: const InputDecoration(labelText: "Qty for Promo"),
+    onChanged: (_) {
+      computePromoLogic();
+    },
+  ),
 
             TextField(
               controller: nameController,
               decoration: const InputDecoration(labelText: "Product Name"),
             ),
-             TextField(
+            TextField(
   controller: costPriceController,
   keyboardType: TextInputType.number,
   decoration: const InputDecoration(labelText: "Cost Price"),
-  onChanged: (_) => computePricePerPiece(),
+  onChanged: (_) {
+    computePricePerPiece();
+    if (isPromo) computePromoLogic();
+  },
 ),
 
-             TextField(
+         TextField(
   controller: byPiecesController,
   keyboardType: TextInputType.number,
   decoration: const InputDecoration(labelText: "By Pieces"),
-  onChanged: (_) => computePricePerPiece(),
+  onChanged: (_) {
+    computePricePerPiece();
+    if (isPromo) computePromoLogic();
+  },
 ),
 
-            SizedBox(height: 10,),
-         Row(
-  mainAxisAlignment: MainAxisAlignment.start,
-  children: [
-    Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey),
-        borderRadius: BorderRadius.circular(4),
-        color: Colors.grey[200],
+            const SizedBox(height: 10),
+           if (!isPromo)
+  Row(
+    children: [
+      Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey),
+          borderRadius: BorderRadius.circular(4),
+          color: Colors.grey[200],
+        ),
+        child: Text('Price per piece: ₱${pricePerPiece.toStringAsFixed(2)}'),
       ),
-      child: Text(
-        'Price per piece: ₱${pricePerPiece.toStringAsFixed(2)}',
-      ),
-    ),
-  ],
-),
+    ],
+  ),
 
             TextField(
               controller: retailPriceController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: "Retail Price"),
+              onChanged: (_) {
+  computeInterest();
+  if (isPromo) computePromoLogic();
+}
+
             ),
-            TextField(
-              controller: stockController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: "Stock"),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(4),
+                    color: Colors.grey[200],
+                  ),
+                  child:
+                      Text('Interest ₱${priceInterest.toStringAsFixed(2)}'),
+                ),
+              ],
             ),
             const SizedBox(height: 20),
             ElevatedButton(
