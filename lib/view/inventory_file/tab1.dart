@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cashier/class/productclass.dart';
 import 'package:cashier/database/local_db.dart';
@@ -13,7 +13,8 @@ class StockScreen extends StatefulWidget {
   State<StockScreen> createState() => _StockScreenState();
 }
 
-class _StockScreenState extends State<StockScreen> {
+class _StockScreenState extends State<StockScreen>
+    with AutomaticKeepAliveClientMixin {
   final LocalDatabase localDb = LocalDatabase();
   final ProductService productService = ProductService();
 
@@ -24,6 +25,8 @@ class _StockScreenState extends State<StockScreen> {
 
   // Controllers for each product to avoid recreating them
   final Map<int, TextEditingController> _stockControllers = {};
+
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
 
   @override
   void initState() {
@@ -38,11 +41,13 @@ class _StockScreenState extends State<StockScreen> {
     searchController.dispose();
     isSyncing.dispose();
     _stockControllers.values.forEach((c) => c.dispose());
+    _connectivitySubscription?.cancel();
     super.dispose();
   }
 
   void _setupConnectivityListener() {
-    Connectivity().onConnectivityChanged.listen((result) {
+    _connectivitySubscription =
+        Connectivity().onConnectivityChanged.listen((result) {
       if (result != ConnectivityResult.none) {
         _syncWithLoading();
       }
@@ -59,6 +64,7 @@ class _StockScreenState extends State<StockScreen> {
           TextEditingController(text: p.stock.toString());
     }
 
+    if (!mounted) return;
     setState(() {
       products = fetchedProducts;
       filteredProducts = fetchedProducts;
@@ -70,6 +76,7 @@ class _StockScreenState extends State<StockScreen> {
       return p.name.toLowerCase().contains(query.toLowerCase());
     }).toList();
 
+    if (!mounted) return;
     setState(() {
       filteredProducts = filtered;
     });
@@ -94,7 +101,7 @@ class _StockScreenState extends State<StockScreen> {
       type: diff > 0 ? 'ADD' : 'SUB',
     );
 
-    // Update UI immediately
+    if (!mounted) return;
     setState(() {
       product.stock = newStock;
       _stockControllers[product.id]?.text = newStock.toString();
@@ -106,27 +113,29 @@ class _StockScreenState extends State<StockScreen> {
 
     isSyncing.value = true;
 
-    final queue = await localDb.getUnsyncedStockUpdates();
+    try {
+      final queue = await localDb.getUnsyncedStockUpdates();
 
-    for (final item in queue) {
-      try {
-        final productId = item['product_id'];
-        final queueId = item['id'];
+      for (final item in queue) {
+        try {
+          final productId = item['product_id'];
+          final queueId = item['id'];
 
-        final finalStock = await localDb.getProductStock(productId);
+          final finalStock = await localDb.getProductStock(productId);
 
-        await Supabase.instance.client
-            .from('products')
-            .update({'stock': finalStock})
-            .eq('id', productId);
+          await Supabase.instance.client
+              .from('products')
+              .update({'stock': finalStock})
+              .eq('id', productId);
 
-        await localDb.markStockUpdateSynced(queueId);
-      } catch (e) {
-        debugPrint("Sync failed: $e");
+          await localDb.markStockUpdateSynced(queueId);
+        } catch (e) {
+          debugPrint("Sync failed: $e");
+        }
       }
+    } finally {
+      if (mounted) isSyncing.value = false;
     }
-
-    isSyncing.value = false;
   }
 
   Future<void> _autoSyncOnOnline() async {
@@ -137,14 +146,12 @@ class _StockScreenState extends State<StockScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // for AutomaticKeepAliveClientMixin
+
     return Stack(
       children: [
         Column(
           children: [
-            // IconButton(
-            //   icon: const Icon(Icons.sync),
-            //   onPressed: _syncWithLoading,
-            // ),
             Padding(
               padding: const EdgeInsets.all(8),
               child: TextField(
@@ -199,6 +206,7 @@ class _StockScreenState extends State<StockScreen> {
                                       await _updateStock(product, newStock);
                                       await _syncWithLoading();
 
+                                      if (!mounted) return;
                                       ScaffoldMessenger.of(context)
                                           .showSnackBar(SnackBar(
                                         content:
@@ -230,4 +238,7 @@ class _StockScreenState extends State<StockScreen> {
       ],
     );
   }
+
+  @override
+  bool get wantKeepAlive => true;
 }

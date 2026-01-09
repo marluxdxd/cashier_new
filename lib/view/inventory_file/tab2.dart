@@ -1,335 +1,67 @@
-import 'dart:io';
-import 'package:cashier/database/local_db.dart';
 import 'package:flutter/material.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:pluto_grid/pluto_grid.dart';
 
-class Tab2Screen extends StatefulWidget {
-  const Tab2Screen({super.key});
+class StockScreen2 extends StatefulWidget {
+  const StockScreen2({super.key});
 
   @override
-  State<Tab2Screen> createState() => _Tab2ScreenState();
+  State<StockScreen2> createState() => _StockScreen2State();
 }
 
-class _Tab2ScreenState extends State<Tab2Screen> {
-  final LocalDatabase localDb = LocalDatabase();
-
-  List<Map<String, dynamic>> products = [];
-  List<Map<String, dynamic>> filteredProducts = [];
-
-  bool isLoading = true;
-  bool isSyncing = false;
-
-  String selectedFilter = 'all';
-  final TextEditingController searchController = TextEditingController();
-
-  static const int lowStockThreshold = 5;
+class _StockScreen2State extends State<StockScreen2> {
+  late List<PlutoColumn> columns;
+  late List<PlutoRow> rows;
 
   @override
   void initState() {
     super.initState();
-    _loadProducts();
-    _listenConnectivity();
+
+    columns = [
+      PlutoColumn(title: 'NO.', field: 'no', type: PlutoColumnType.number()),
+      PlutoColumn(title: 'SUPPLIES', field: 'supplies', type: PlutoColumnType.text()),
+      PlutoColumn(title: 'WHOLESALE PRICE', field: 'wholesale', type: PlutoColumnType.number()),
+      PlutoColumn(title: 'PACK/PCS', field: 'pack', type: PlutoColumnType.text()),
+      PlutoColumn(title: 'PRICE PER PCS', field: 'price', type: PlutoColumnType.number()),
+      PlutoColumn(title: 'BY', field: 'by', type: PlutoColumnType.text()),
+      PlutoColumn(title: 'KL', field: 'kl', type: PlutoColumnType.text()),
+      PlutoColumn(title: 'TOTAL PURCHASE(PCS)', field: 'purchase', type: PlutoColumnType.number()),
+      PlutoColumn(title: 'QUANTITY/PCS ACTUAL', field: 'actual', type: PlutoColumnType.number()),
+      PlutoColumn(title: 'SOLD SUPPLIES', field: 'sold', type: PlutoColumnType.number()),
+      PlutoColumn(title: 'INTEREST', field: 'interest', type: PlutoColumnType.number()),
+      PlutoColumn(title: 'UNIT PRICE', field: 'unit', type: PlutoColumnType.number()),
+      PlutoColumn(title: 'REMARKS', field: 'remarks', type: PlutoColumnType.text()),
+    ];
+
+    rows = [
+      PlutoRow(cells: {
+        'no': PlutoCell(value: 1),
+        'supplies': PlutoCell(value: 'Sample Item'),
+        'wholesale': PlutoCell(value: 1000),
+        'pack': PlutoCell(value: '10 pcs'),
+        'price': PlutoCell(value: 100),
+        'by': PlutoCell(value: 'Pack'),
+        'kl': PlutoCell(value: '-'),
+        'purchase': PlutoCell(value: 10),
+        'actual': PlutoCell(value: 10),
+        'sold': PlutoCell(value: 3),
+        'interest': PlutoCell(value: 20),
+        'unit': PlutoCell(value: 120),
+        'remarks': PlutoCell(value: 'OK'),
+      }),
+    ];
   }
 
-  @override
-  void dispose() {
-    searchController.dispose();
-    super.dispose();
-  }
-
-  // ================= LOAD PRODUCTS =================
-  Future<void> _loadProducts() async {
-    setState(() => isLoading = true);
-    try {
-      final db = await localDb.database;
-      final result = await db.rawQuery('''
-        SELECT
-          id,
-          name,
-          stock,
-          cost_price,
-          retail_price,
-          is_synced,
-          (retail_price - cost_price) AS profit
-        FROM products
-        ORDER BY name ASC
-      ''');
-
-      products = result;
-      _applyFilter();
-    } catch (e) {
-      debugPrint('Load stock error: $e');
-    } finally {
-      setState(() => isLoading = false);
-    }
-  }
-
-  // ================= FILTER =================
-  void _applyFilter() {
-    List<Map<String, dynamic>> list = [...products];
-
-    if (selectedFilter == 'low') {
-      list = list.where((p) => (p['stock'] as int) <= lowStockThreshold).toList();
-    } else if (selectedFilter == 'out') {
-      list = list.where((p) => (p['stock'] as int) == 0).toList();
-    }
-
-    final q = searchController.text.toLowerCase();
-    if (q.isNotEmpty) {
-      list = list.where((p) => (p['name'] as String).toLowerCase().contains(q)).toList();
-    }
-
-    setState(() => filteredProducts = list);
-  }
-
-  // ================= CONNECTIVITY =================
-  void _listenConnectivity() {
-    Connectivity().onConnectivityChanged.listen((result) {
-      if (result != ConnectivityResult.none) {
-        _syncStock();
-      }
-    });
-  }
-
-  Future<bool> _isOnline() async {
-    final connectivity = await Connectivity().checkConnectivity();
-    return connectivity != ConnectivityResult.none;
-  }
-
-  // ================= SYNC =================
-  Future<void> _syncStock() async {
-    if (!await _isOnline()) return;
-
-    setState(() => isSyncing = true);
-
-    try {
-      final queue = await localDb.getUnsyncedStockUpdates();
-
-      for (final q in queue) {
-        final productId = q['product_id'];
-        final queueId = q['id'];
-
-        final finalStock = await localDb.getProductStock(productId);
-
-        await Supabase.instance.client
-            .from('products')
-            .update({'stock': finalStock})
-            .eq('id', productId);
-
-        await localDb.markStockUpdateSynced(queueId);
-      }
-
-      await _loadProducts();
-    } catch (e) {
-      debugPrint('Sync error: $e');
-    } finally {
-      setState(() => isSyncing = false);
-    }
-  }
-
-  // ================= STOCK HISTORY =================
-  Future<void> _showStockHistory(int productId, String name) async {
-    final db = await localDb.database;
-    final history = await db.query(
-      'product_stock_history',
-      where: 'product_id = ?',
-      whereArgs: [productId],
-      orderBy: 'created_at DESC',
-    );
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Stock History – $name'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: history.isEmpty
-              ? const Text('No stock history')
-              : ListView.builder(
-                  itemCount: history.length,
-                  itemBuilder: (_, i) {
-                    final h = history[i];
-                    return ListTile(
-                      dense: true,
-                      title: Text(
-                        '${h['change_type']} (${h['qty_changed']})',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      subtitle: Text(
-                        'Old: ${h['old_stock']} → New: ${h['new_stock']}\n${h['created_at']}',
-                      ),
-                    );
-                  },
-                ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close'))
-        ],
-      ),
-    );
-  }
-
-  // ================= UI =================
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Column(
-          children: [
-            Row(
-              children: [
-                // PopupMenuButton<String>(
-                //   icon: const Icon(Icons.filter_list),
-                //   onSelected: (v) {
-                //     selectedFilter = v;
-                //     _applyFilter();
-                //   },
-                //   itemBuilder: (_) => const [
-                //     PopupMenuItem(value: 'all', child: Text('All Products')),
-                //     PopupMenuItem(value: 'low', child: Text('Low Stock')),
-                //     PopupMenuItem(value: 'out', child: Text('Out of Stock')),
-                //   ],
-                // ),
-                // IconButton(
-                //   icon: const Icon(Icons.sync),
-                //   onPressed: _syncStock,
-                // ),
-              ],
-            ),
-            Expanded(
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: TextField(
-                            controller: searchController,
-                            decoration: const InputDecoration(
-                              labelText: 'Search product',
-                              prefixIcon: Icon(Icons.search),
-                            ),
-                            onChanged: (_) => _applyFilter(),
-                          ),
-                        ),
-                        _tableHeader(),
-                        const Divider(height: 1),
-                        Expanded(
-                          child: filteredProducts.isEmpty
-                              ? const Center(child: Text('No products found'))
-                              : ListView.builder(
-                                  itemCount: filteredProducts.length,
-                                  itemBuilder: (_, i) =>
-                                      _tableRow(filteredProducts[i]),
-                                ),
-                        ),
-                      ],
-                    ),
-            ),
-          ],
-        ),
-        if (isSyncing)
-          Container(
-            color: Colors.black54,
-            child: const Center(child: CircularProgressIndicator()),
-          ),
-      ],
-    );
-  }
-
-  // ================= TABLE =================
-  Widget _tableHeader() {
-    return Container(
-      color: Colors.grey.shade200,
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-      child: const Row(
-        children: [
-          Expanded(flex: 3, child: Text('Product', style: _header)),
-          Expanded(
-              flex: 1,
-              child: Text('Stock', textAlign: TextAlign.right, style: _header)),
-          Expanded(
-              flex: 2,
-              child: Text('Cost', textAlign: TextAlign.right, style: _header)),
-          Expanded(
-              flex: 2,
-              child: Text('Retail', textAlign: TextAlign.right, style: _header)),
-          Expanded(
-              flex: 2,
-              child: Text('Profit', textAlign: TextAlign.right, style: _header)),
-          SizedBox(width: 26),
-        ],
-      ),
-    );
-  }
-
-  Widget _tableRow(Map<String, dynamic> p) {
-    final profit = (p['profit'] as num?) ?? 0;
-    final stock = (p['stock'] as int?) ?? 0;
-    final isSynced = p['is_synced'] == 1;
-
-    return InkWell(
-      onTap: () => _showStockHistory(p['id'], p['name']),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              flex: 3,
-              child: Text(
-                p['name'],
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: stock <= lowStockThreshold ? Colors.red : Colors.black,
-                ),
-              ),
-            ),
-            Expanded(
-              flex: 1,
-              child: Text('$stock',
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                      color:
-                          stock <= lowStockThreshold ? Colors.red : Colors.black)),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text('₱${(p['cost_price'] as num).toStringAsFixed(2)}',
-                  textAlign: TextAlign.right),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text('₱${(p['retail_price'] as num).toStringAsFixed(2)}',
-                  textAlign: TextAlign.right),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                '₱${profit.toStringAsFixed(2)}',
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                  color: profit >= 0 ? Colors.green : Colors.red,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            Icon(
-              isSynced ? Icons.cloud_done : Icons.cloud_off,
-              size: 18,
-              color: isSynced ? Colors.green : Colors.orange,
-            ),
-          ],
-        ),
+    return Scaffold(
+      appBar: AppBar(title: const Text("Supplies Grid")),
+      body: PlutoGrid(
+        columns: columns,
+        rows: rows,
+        onLoaded: (event) {
+          event.stateManager.setShowColumnFilter(true); // optional search/filter
+        },
       ),
     );
   }
 }
-
-// ================= STYLE =================
-const TextStyle _header = TextStyle(fontWeight: FontWeight.bold);

@@ -632,30 +632,38 @@ CREATE TABLE transaction_items(
     );
   }
 
-  Future<void> updateProduct({
-    required int id,
-    required int stock,
-    double? retailPrice,
-    double? costPrice,
-    bool? isPromo,
-    int? otherQty,
-  }) async {
-    final db = await database;
-    await db.update(
-      'products',
-      {
-        'stock': stock,
-        'retail_price': retailPrice,
-        'cost_price': costPrice,
-        'is_promo': isPromo == true ? 1 : 0,
-        'other_qty': otherQty ?? 0,
-        'is_synced': 0, // mark as unsynced
-        'updated_at': DateTime.now().toIso8601String(), // mark update
-      },
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-  }
+Future<void> updateProduct({
+  required int id,
+  required int stock,
+  required double costPrice,
+  required double retailPrice,
+  required bool isPromo,
+  required int otherQty,
+}) async {
+  final dbClient = await database;
+
+  // Update the product
+  await dbClient.update(
+    'products',
+    {
+      'stock': stock,
+      'cost_price': costPrice,
+      'retail_price': retailPrice,
+      'is_promo': isPromo ? 1 : 0,
+      'other_qty': otherQty,
+    },
+    where: 'id = ?',
+    whereArgs: [id],
+  );
+
+  // Reset SQLite AUTOINCREMENT sequence for products
+  await dbClient.rawUpdate('''
+    UPDATE sqlite_sequence
+    SET seq = (SELECT MAX(id) FROM products)
+    WHERE name = 'products';
+  ''');
+}
+
 
   // ------------------- TRANSACTIONS CRUD ------------------- //
   // 🔹 Insert a new transaction (ignores conflict if ID exists)
@@ -1024,29 +1032,22 @@ Future<void> printAllTransactionItems() async {
     await txn.delete('transactions');
     await txn.delete('transaction_promos');
     // await txn.delete('products');
-    // await txn.delete('products');
 
-    // Reset AUTOINCREMENT counters
     await txn.execute("DELETE FROM sqlite_sequence");
   });
 }
-//UI
-// ElevatedButton(
-//   style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-//   onPressed: () async {
-//     // Reset LOCAL
-//     final localDb = LocalDatabase();
-// await localDb.resetLocalDatabase();
 
-//     // Reset ONLINE (Supabase)
-//     await Supabase.instance.client.rpc('reset_all_transactions');
+  /// Resets the SQLite AUTOINCREMENT sequence for the 'products' table
+  Future<void> resetLocalProductIdSequence() async {
+  final dbClient = await database;
+  await dbClient.rawUpdate('''
+    UPDATE sqlite_sequence
+    SET seq = (SELECT MAX(id) FROM products)
+    WHERE name = 'products';
+  ''');
+}
 
-//     ScaffoldMessenger.of(context).showSnackBar(
-//       const SnackBar(content: Text("Database reset successful")),
-//     );
-//   },
-//   child: const Text("RESET ALL DATA"),
-// ),
+
 }
 
 

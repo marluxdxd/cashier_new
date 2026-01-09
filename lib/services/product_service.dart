@@ -44,6 +44,28 @@ class ProductService {
     });
   }
 
+  /// Resets the 'products_id_seq' sequence to MAX(id) + 1
+  Future<void> resetProductIdSequence() async {
+    final query = """
+      SELECT setval(
+        pg_get_serial_sequence('products', 'id'),
+        (SELECT MAX(id) FROM products),
+        true
+      );
+    """;
+
+    try {
+      // Replace this with your database query execution
+      // For example, if using Supabase:
+      final response = await supabase.rpc('reset_product_sequence');
+      // Or if using raw SQL:
+      // await supabase.from('products').execute(query);
+      print("Product sequence reset successfully");
+    } catch (e) {
+      print("Error resetting product sequence: $e");
+    }
+  }
+
   void disposeConnectivity() {
     _connectivitySub.cancel();
   }

@@ -1,6 +1,8 @@
 import 'package:cashier/view/all_products_screen.dart';
+import 'package:cashier/view/editdelete.dart';
 import 'package:cashier/view/history_stock_screen.dart';
 import 'package:cashier/view/home.dart';
+import 'package:cashier/view/productview.dart';
 import 'package:cashier/view/reports_file/sales_reports_screen.dart';
 
 import 'package:cashier/view/stock_screnn.dart';
@@ -93,25 +95,14 @@ class _AppdrawerState extends State<Appdrawer> {
           ),
           ListTile(
             leading: Icon(Icons.inventory_rounded),
-            title: Text("Add Products"),
+            title: Text("Add/edit/delete"),
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => AddProductPage()),
+                MaterialPageRoute(builder: (_) => Productview()),
               );
             },
           ),
-          // ListTile(
-          //   leading: Icon(Icons.list_alt),
-          //   title: Text("View All Products"),
-          //   onTap: () {
-          //     Navigator.pop(context); // close drawer if inside drawer
-          //     Navigator.push(
-          //       context,
-          //       MaterialPageRoute(builder: (context) => AllProductsScreen()),
-          //     );
-          //   },
-          // ),
 
           ListTile(
             leading: Icon(Icons.storefront_sharp),
@@ -165,6 +156,8 @@ class _AppdrawerState extends State<Appdrawer> {
               ),
             ],
           ),
+
+         
         ],
       ),
     );

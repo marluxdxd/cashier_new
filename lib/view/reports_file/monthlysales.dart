@@ -207,10 +207,10 @@ class _MonthlySalesState extends State<MonthlySales> {
             pw.Table(
               border: pw.TableBorder.all(color: PdfColors.grey300),
               columnWidths: {
-                0: const pw.FlexColumnWidth(3),
+                0: const pw.FlexColumnWidth(4),
                 1: const pw.FlexColumnWidth(2),
                 2: const pw.FlexColumnWidth(1),
-                3: const pw.FlexColumnWidth(2),
+                3: const pw.FlexColumnWidth(1),
                 4: const pw.FlexColumnWidth(2),
                 5: const pw.FlexColumnWidth(2),
               },

@@ -27,7 +27,7 @@ class InventoryStock extends StatelessWidget {
         body: const TabBarView(
           children: [
             StockScreen(),
-            Tab2Screen(),
+            StockScreen2(),
           
           ],
         ),

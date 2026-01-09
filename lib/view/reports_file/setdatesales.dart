@@ -48,26 +48,23 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
         await rootBundle.load('assets/fonts/NotoSans-Regular.ttf');
     final boldData = await rootBundle.load('assets/fonts/NotoSans-Bold.ttf');
 
+    if (!mounted) return;
     setState(() {
       regularFont = pw.Font.ttf(regularData);
       boldFont = pw.Font.ttf(boldData);
     });
   }
 
-  // ✅ Corrected fetch & merge function with is_promo logic
   Future<void> fetchAndMergeItems() async {
+    if (!mounted) return;
     setState(() => isLoading = true);
     try {
-      // Fetch transactions
       final transactionsRes = await supabase
           .from('transactions')
           .select('*')
           .order('created_at', ascending: false);
 
-      // Fetch transaction items
       final itemsRes = await supabase.from('transaction_items').select('*');
-
-      // Fetch transaction promos
       final promosRes = await supabase.from('transaction_promos').select('*');
 
       final transactions =
@@ -75,57 +72,49 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
       final items = List<Map<String, dynamic>>.from(itemsRes as List);
       final promos = List<Map<String, dynamic>>.from(promosRes as List);
 
-mergedItems = items.map((item) {
-  final tx = transactions.firstWhere(
-    (t) => t['id'].toString() == item['transaction_id'].toString(),
-    orElse: () => {},
-  );
+      final merged = items.map((item) {
+        final tx = transactions.firstWhere(
+          (t) => t['id'].toString() == item['transaction_id'].toString(),
+          orElse: () => {},
+        );
 
-  final relatedPromos = promos.where(
-    (p) =>
-        p['transaction_id'].toString() ==
-            item['transaction_id'].toString() &&
-        p['product_id'].toString() == item['product_id'].toString(),
-  );
+        final relatedPromos = promos.where(
+          (p) =>
+              p['transaction_id'].toString() ==
+                  item['transaction_id'].toString() &&
+              p['product_id'].toString() == item['product_id'].toString(),
+        );
 
-  final totalPromo = relatedPromos.fold<int>(
-    0,
-    (sum, p) => sum + ((p['promo_count'] ?? 0) as int),
-  );
+        final totalPromo = relatedPromos.fold<int>(
+          0,
+          (sum, p) => sum + ((p['promo_count'] ?? 0) as int),
+        );
 
-  item['transaction'] = tx;
-  item['promo_count'] = totalPromo;
+        item['transaction'] = tx;
+        item['promo_count'] = totalPromo;
 
-  final price = double.tryParse(item['retail_price']?.toString() ?? '0') ?? 0;
-  final qty = (item['qty'] ?? 0) as num;
-  final isPromo = item['is_promo'] == true;
+        final price =
+            double.tryParse(item['retail_price']?.toString() ?? '0') ?? 0;
+        final qty = (item['qty'] ?? 0) as num;
+        final isPromo = item['is_promo'] == true;
 
-  // Subtotal calculation
-  item['subtotal'] = isPromo ? totalPromo * price : qty * price;
+        item['subtotal'] = isPromo ? totalPromo * price : qty * price;
 
-  // ✅ Debug prints
-  print('--- Item Debug ---');
-  print('Product: ${item['product_name']}');
-  print('Qty: $qty');
-  print('Price: $price');
-  print('Is Promo: $isPromo');
-  print('Promo Count: $totalPromo');
-  print('Subtotal: ${item['subtotal']}');
-  print('Transaction ID: ${item['transaction_id']}');
-  print('Created At: ${tx['created_at']}');
-  print('-----------------');
+        return item;
+      }).toList();
 
-  return item;
-}).toList();
-
+      if (!mounted) return;
+      setState(() {
+        mergedItems = merged;
+      });
     } catch (e) {
       debugPrint("Error fetching payments: $e");
     } finally {
+      if (!mounted) return;
       setState(() => isLoading = false);
     }
   }
 
-  // Filter items by date range
   List<Map<String, dynamic>> filterItemsByDate(DateTime start, DateTime end) {
     return mergedItems.where((item) {
       final createdAt = item['transaction']?['created_at'];
@@ -136,7 +125,6 @@ mergedItems = items.map((item) {
     }).toList();
   }
 
-  // Convert UTC to PHT and format
   String formatToPHT(String? utcString) {
     if (utcString == null) return '';
     final utcTime = DateTime.parse(utcString).toUtc();
@@ -144,18 +132,15 @@ mergedItems = items.map((item) {
     return DateFormat('yyyy-MM-dd hh:mm a').format(phtTime);
   }
 
-  // Generate PDF
   Future<File> generatePDF(DateTime start, DateTime end) async {
     final filteredItems = filterItemsByDate(start, end);
     final pdf = pw.Document();
 
-    // Grand total
     double grandTotal = filteredItems.fold(0.0, (sum, i) {
       final subtotal = (i['subtotal'] ?? 0) as num;
       return sum + subtotal;
     });
 
-    // Product totals for chart
     final productTotals = <String, double>{};
     for (var item in filteredItems) {
       final product = item['product_name'] ?? 'Unknown';
@@ -247,11 +232,11 @@ mergedItems = items.map((item) {
     return pw.Table(
       border: pw.TableBorder.all(color: PdfColors.grey300),
       columnWidths: {
-        0: const pw.FlexColumnWidth(3),
+        0: const pw.FlexColumnWidth(4),
         1: const pw.FlexColumnWidth(1),
-        2: const pw.FlexColumnWidth(1),
-        3: const pw.FlexColumnWidth(2),
-        4: const pw.FlexColumnWidth(2),
+        2: const pw.FlexColumnWidth(2),
+        3: const pw.FlexColumnWidth(1),
+        4: const pw.FlexColumnWidth(1),
         5: const pw.FlexColumnWidth(2),
         6: const pw.FlexColumnWidth(2),
       },
@@ -316,7 +301,7 @@ mergedItems = items.map((item) {
                   firstDate: DateTime(2020),
                   lastDate: DateTime.now(),
                 );
-                if (picked != null) setState(() => startDate = picked);
+                if (picked != null && mounted) setState(() => startDate = picked);
               },
               child: Text(startDate == null
                   ? "Start Date"
@@ -333,7 +318,7 @@ mergedItems = items.map((item) {
                   firstDate: DateTime(2020),
                   lastDate: DateTime.now(),
                 );
-                if (picked != null) setState(() => endDate = picked);
+                if (picked != null && mounted) setState(() => endDate = picked);
               },
               child: Text(endDate == null
                   ? "End Date"
@@ -343,7 +328,7 @@ mergedItems = items.map((item) {
           IconButton(
             icon: const Icon(Icons.add, color: Colors.green),
             onPressed: () {
-              if (startDate != null && endDate != null) {
+              if (startDate != null && endDate != null && mounted) {
                 setState(() {
                   reportQueue.add({'startDate': startDate!, 'endDate': endDate!});
                 });
@@ -372,6 +357,7 @@ mergedItems = items.map((item) {
     final jsonString = prefs.getString('reportQueue');
     if (jsonString != null) {
       final decoded = jsonDecode(jsonString) as List;
+      if (!mounted) return;
       setState(() {
         reportQueue = decoded.map((e) {
           return {
@@ -408,8 +394,7 @@ mergedItems = items.map((item) {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon:
-                                  const Icon(Icons.picture_as_pdf, color: Colors.red),
+                              icon: const Icon(Icons.picture_as_pdf, color: Colors.red),
                               onPressed: () async {
                                 final file = await generatePDF(start, end);
                                 if (!mounted) return;
@@ -424,6 +409,7 @@ mergedItems = items.map((item) {
                               icon: const Icon(Icons.share, color: Colors.blue),
                               onPressed: () async {
                                 final file = await generatePDF(start, end);
+                                if (!mounted) return;
                                 await Share.shareXFiles([XFile(file.path)],
                                     text:
                                         'Payments Report: ${DateFormat('MMM dd, yyyy').format(start)} - ${DateFormat('MMM dd, yyyy').format(end)}');
@@ -432,6 +418,7 @@ mergedItems = items.map((item) {
                             IconButton(
                               icon: const Icon(Icons.delete, color: Colors.grey),
                               onPressed: () {
+                                if (!mounted) return;
                                 setState(() {
                                   reportQueue.removeAt(index);
                                 });
