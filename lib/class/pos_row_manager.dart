@@ -239,10 +239,6 @@ if (removedRow.isPromo && removedRow.product != null) {
     );
   }
 }
-
-
-
-
               rows.removeAt(index);
               if (rows.isEmpty)  reset();
               onUpdate();

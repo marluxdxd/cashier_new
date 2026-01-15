@@ -1,13 +1,9 @@
-import 'package:cashier/view/all_products_screen.dart';
-import 'package:cashier/view/editdelete.dart';
 import 'package:cashier/view/history_stock_screen.dart';
 import 'package:cashier/view/home.dart';
 import 'package:cashier/view/productview.dart';
 import 'package:cashier/view/reports_file/sales_reports_screen.dart';
-
 import 'package:cashier/view/stock_screnn.dart';
 import 'package:cashier/view/transaction_history.dart';
-import 'package:cashier/widget/addproduct.dart';
 import 'package:flutter/material.dart';
 
 class Appdrawer extends StatefulWidget {
@@ -99,7 +95,7 @@ class _AppdrawerState extends State<Appdrawer> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => Productview()),
+               MaterialPageRoute(builder: (_) => const Productview()),
               );
             },
           ),
