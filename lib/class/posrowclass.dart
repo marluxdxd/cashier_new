@@ -8,9 +8,10 @@ class POSRow {
   int qty; 
   bool isPromo;
   int otherQty;
+  int promo_count =1;
   
   
   final GlobalKey rowKey = GlobalKey(); // 🔑 Add this
-  POSRow({this.product, this.qty = 0, this.isPromo = false, this.otherQty = 0});
+  POSRow({this.product, this.qty = 0, this.isPromo = false, this.otherQty = 0, this.promo_count = 1});
 }
 
