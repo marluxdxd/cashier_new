@@ -198,33 +198,33 @@ class _HomeState extends State<Home> {
                 ),
               ),
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              onPressed: () async {
-                // Reset LOCAL
-                final localDb = LocalDatabase();
-                await localDb.resetLocalDatabase();
+            // ElevatedButton(
+            //   style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            //   onPressed: () async {
+            //     // Reset LOCAL
+            //     final localDb = LocalDatabase();
+            //     await localDb.resetLocalDatabase();
 
-                // Reset ONLINE (Supabase)
-                await Supabase.instance.client.rpc('reset_all_transactions');
+            //     // Reset ONLINE (Supabase)
+            //     await Supabase.instance.client.rpc('reset_all_transactions');
 
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Database reset successful")),
-                );
-              },
-              child: const Text("RESET ALL DATA"),
-            ),
+            //     ScaffoldMessenger.of(context).showSnackBar(
+            //       const SnackBar(content: Text("Database reset successful")),
+            //     );
+            //   },
+            //   child: const Text("RESET ALL DATA"),
+            // ),
 
-            IconButton(
-              icon: const Icon(Icons.storage),
-              tooltip: "Open DB Debug",
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const DebugDbScreen()),
-                );
-              },
-            ),
+            // IconButton(
+            //   icon: const Icon(Icons.storage),
+            //   tooltip: "Open DB Debug",
+            //   onPressed: () {
+            //     Navigator.push(
+            //       context,
+            //       MaterialPageRoute(builder: (_) => const DebugDbScreen()),
+            //     );
+            //   },
+            // ),
             SizedBox(height: 20),
 
             // ---------------- TOTAL BILL ----------------
