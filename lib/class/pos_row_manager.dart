@@ -14,13 +14,12 @@ class POSRowManager {
   late List<POSRow> rows;
   Map<int, int> promoCountByProduct = {};
 
-  // ================= ADD EMPTY ROW =================
+  // ADD EMPTY ROW
   void addEmptyRow() {
     rows.add(POSRow());
-    print("addEmptyRow() called → total rows: ${rows.length}");
   }
 
-  // ================= RESET =================
+  // RESET
   void reset() {
     rows = [POSRow()];
   }
@@ -28,10 +27,9 @@ class POSRowManager {
   void reset2() {
     rows = [POSRow()];
     promoCountByProduct.clear();
-    print("♻️ RESET → rows & promo counts cleared");
   }
 
-  // ================= AUTO FILL ROWS =================
+  // AUTO FILL
   Future<void> autoFillRows(VoidCallback onUpdate) async {
     for (int i = 0; i < rows.length; i++) {
       final row = rows[i];
@@ -49,9 +47,7 @@ class POSRowManager {
 
         if (selectedProduct == null) break;
 
-        final alreadySelected = rows.any(
-          (r) => r.product?.id == selectedProduct!.id,
-        );
+        final alreadySelected = rows.any((r) => r.product?.id == selectedProduct!.id);
 
         if (alreadySelected) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -99,7 +95,7 @@ class POSRowManager {
     }
   }
 
-  // ================= MINI QTY CONTROLS =================
+  // MINI QTY CONTROLS
   Widget _buildQuantityControls(POSRow row, VoidCallback onUpdate) {
     int baseQty = row.isPromo ? row.product?.otherQty ?? 1 : 1;
 
@@ -142,38 +138,56 @@ class POSRowManager {
     );
   }
 
-  // ================= BUILD ROW WITH SWIPE =================
- Widget buildRow(
-  POSRow row,
-  int index, {
-  required VoidCallback onUpdate,
-  required bool isAutoNextRowOn,
-}) {
-  double displayPrice = 0;
-  if (row.product != null) {
-    displayPrice = row.isPromo
-        ? row.product!.retailPrice * row.promo_count
-        : row.product!.retailPrice * row.qty;
-  }
+  // BUILD ROW
+  Widget buildRow(
+    POSRow row,
+    int index, {
+    required VoidCallback onUpdate,
+    required bool isAutoNextRowOn,
+  }) {
+    double displayPrice = 0;
+    if (row.product != null) {
+      displayPrice = row.isPromo
+          ? row.product!.retailPrice * row.promo_count
+          : row.product!.retailPrice * row.qty;
+    }
 
-  final isWideScreen = MediaQuery.of(context).size.width > 600; // adjust threshold
-  final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final size = MediaQuery.of(context).size;
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
-  Widget rowContent = Container(
-    padding: const EdgeInsets.all(8),
-    decoration: BoxDecoration(
-      border: Border.all(color: Colors.black),
-      borderRadius: BorderRadius.circular(6),
-    ),
-    child: Row(
+    // Portrait stays untouched → Dismissible logic preserved
+    final relaxLayout = isLandscape;
+
+    // MAIN ROW WIDGET
+    Widget mainRow = Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // ================= PRODUCT NAME =================
-        Flexible(
+        // PRODUCT NAME — WITH PORTRAIT TRUNCATION + LONG PRESS
+        Expanded(
           flex: 3,
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
+          child: GestureDetector(
+            onLongPress: () {
+              if (!isLandscape && row.product != null) {
+                showDialog(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text("Product Name"),
+                    content: SingleChildScrollView(
+                      child: Text(
+                        row.product!.name,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text("Close"),
+                      )
+                    ],
+                  ),
+                );
+              }
+            },
             child: InkWell(
               onTap: () async {
                 if (row.product != null) {
@@ -251,7 +265,12 @@ class POSRowManager {
                   border: Border.all(color: Colors.grey),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Text(row.product?.name ?? "Select Product"),
+                child: Text(
+                  row.product?.name ?? "Select Product",
+                  overflow: isLandscape ? TextOverflow.visible : TextOverflow.ellipsis,
+                  maxLines: 1,
+                  softWrap: false,
+                ),
               ),
             ),
           ),
@@ -259,7 +278,7 @@ class POSRowManager {
 
         const SizedBox(width: 8),
 
-        // ================= QTY BOX =================
+        // QTY BOX
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
@@ -275,19 +294,16 @@ class POSRowManager {
 
         const SizedBox(width: 8),
 
-        // ================= MINI CONTROLS =================
         _buildQuantityControls(row, onUpdate),
 
         const SizedBox(width: 8),
 
-        // ================= ROW TOTAL =================
         Text(
           "₱${displayPrice.toStringAsFixed(2)}",
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
 
-        // ================= DELETE BUTTON FOR WIDE SCREEN =================
-        if (isWideScreen || isLandscape)
+        if (relaxLayout)
           IconButton(
             icon: const Icon(Icons.delete, color: Colors.red),
             onPressed: () {
@@ -300,47 +316,58 @@ class POSRowManager {
             },
           ),
       ],
-    ),
-  );
+    );
 
-  // For small screens / portrait → Dismissible
-  if (!isWideScreen && !isLandscape) {
+    // ============================
+    // PORTRAIT MODE (Untouched!)
+    // ============================
+    if (!relaxLayout) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Dismissible(
+          key: ValueKey(row.hashCode),
+          direction: DismissDirection.endToStart,
+          background: Container(
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 20),
+            decoration: BoxDecoration(
+              color: Colors.red,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Icon(Icons.delete, color: Colors.white),
+          ),
+          onDismissed: (_) {
+            if (row.isPromo && row.product != null) {
+              promoCountByProduct.remove(row.product!.id);
+            }
+            rows.removeAt(index);
+            if (rows.isEmpty) reset();
+            onUpdate();
+          },
+          child: mainRow,
+        ),
+      );
+    }
+
+    // ============================
+    // LANDSCAPE MODE (Fixed width)
+    // ============================
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Dismissible(
-        key: ValueKey(row.hashCode),
-        direction: DismissDirection.endToStart,
-        background: Container(
-          alignment: Alignment.centerRight,
-          padding: const EdgeInsets.only(right: 20),
-          decoration: BoxDecoration(
-            color: Colors.red,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: const Icon(Icons.delete, color: Colors.white),
+      child: Container(
+        width: size.width,
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.black),
+          borderRadius: BorderRadius.circular(6),
         ),
-        onDismissed: (_) {
-          if (row.isPromo && row.product != null) {
-            promoCountByProduct.remove(row.product!.id);
-          }
-          rows.removeAt(index);
-          if (rows.isEmpty) reset();
-          onUpdate();
-        },
-        child: rowContent,
+        child: mainRow,
       ),
     );
   }
 
-  // Otherwise, just return normal row with delete button
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
-    child: rowContent,
-  );
-}
-
-    // ================= TOTAL BILL =================
-    double get totalBill {
+  // TOTAL BILL
+  double get totalBill {
     double total = 0;
     for (var row in rows) {
       if (row.product != null) {

@@ -232,7 +232,7 @@ class _SetSaleDateTabState extends State<SetSaleDateTab> {
     return pw.Table(
       border: pw.TableBorder.all(color: PdfColors.grey300),
       columnWidths: {
-        0: const pw.FlexColumnWidth(4),
+        0: const pw.FlexColumnWidth(3),
         1: const pw.FlexColumnWidth(1),
         2: const pw.FlexColumnWidth(2),
         3: const pw.FlexColumnWidth(1),
