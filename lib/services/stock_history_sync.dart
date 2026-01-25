@@ -89,7 +89,7 @@ class StockHistorySyncService {
   'old_stock': entry['old_stock'] ?? 0,
   'new_stock': entry['new_stock'] ?? 0,
   'qty_changed': entry['qty_changed'] ?? 0,
-  'change_type': entry['change_type']?.toString() ?? 'adjust',
+  'change_type': entry['change_type']?.toString() ?? 'sale',
   'trans_date': entry['trans_date']?.toString() ?? DateTime.now().toIso8601String(),
   'created_at': entry['created_at']?.toString() ?? DateTime.now().toIso8601String(),
   'product_client_uuid': clientUuid,

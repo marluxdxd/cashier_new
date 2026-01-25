@@ -215,16 +215,16 @@ class _HomeState extends State<Home> {
             //   child: const Text("RESET ALL DATA"),
             // ),
 
-            // IconButton(
-            //   icon: const Icon(Icons.storage),
-            //   tooltip: "Open DB Debug",
-            //   onPressed: () {
-            //     Navigator.push(
-            //       context,
-            //       MaterialPageRoute(builder: (_) => const DebugDbScreen()),
-            //     );
-            //   },
-            // ),
+            IconButton(
+              icon: const Icon(Icons.storage),
+              tooltip: "Open DB Debug",
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DebugDbScreen()),
+                );
+              },
+            ),
             SizedBox(height: 20),
 
             // ---------------- TOTAL BILL ----------------

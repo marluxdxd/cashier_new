@@ -142,9 +142,9 @@ class LocalDatabase {
       CREATE TABLE products(
         id INTEGER PRIMARY KEY,
         name TEXT NOT NULL,
-    
         cost_price REAL DEFAULT 0,
-        retail_price REAL DEFAULT price,
+        retail_price REAL DEFAULT 0,
+        by_pieces INTEGER DEFAULT 1,
         stock INTEGER NOT NULL,
         is_promo INTEGER DEFAULT 0,
         other_qty INTEGER DEFAULT 0,

@@ -87,27 +87,54 @@ class _StockScreenState extends State<StockScreen>
     return connectivity != ConnectivityResult.none;
   }
 
-  Future<void> _updateStock(Productclass product, int newStock) async {
-    final diff = newStock - product.stock;
-    if (diff == 0) return;
+  /// Update stock locally, queue change, and insert stock history
+ Future<void> _updateStock(Productclass product, int newStock) async {
+  final oldStock = product.stock;
+  final diff = newStock - oldStock;
+  if (diff == 0) return;
 
-    // Update local DB
-    await localDb.updateProductStock(product.id, newStock);
+  final changeType = diff > 0 ? 'ADD' : 'SUB';
 
-    // Add to stock queue
-    await localDb.insertStockUpdateQueue1(
-      productId: product.id,
-      qty: diff.abs(),
-      type: diff > 0 ? 'ADD' : 'SUB',
-    );
+  // 1️⃣ Update local DB
+  await localDb.updateProductStock(product.id, newStock);
 
-    if (!mounted) return;
-    setState(() {
-      product.stock = newStock;
-      _stockControllers[product.id]?.text = newStock.toString();
-    });
+  // 2️⃣ Add to stock queue
+  await localDb.insertStockUpdateQueue1(
+    productId: product.id,
+    qty: diff.abs(),
+    type: changeType,
+  );
+
+  // 3️⃣ Insert into Supabase stock history if online
+  if (await _isOnline()) {
+    try {
+      await Supabase.instance.client.from('product_stock_history').insert({
+        'product_id': product.id,
+        'product_name': product.name,
+        'old_stock': oldStock,
+        'new_stock': newStock,
+        'qty_changed': diff.abs(),
+        'change_type': changeType,
+        'trans_date': DateTime.now().toIso8601String(),
+        'product_client_uuid': product.productClientUuid, // ✅ corrected
+        'cost_price': product.costPrice,
+        'retail_price': product.retailPrice,
+      });
+      print('✅ Stock history inserted for ${product.name} | type=$changeType');
+    } catch (e) {
+      print('❌ Failed to insert stock history: $e');
+    }
   }
 
+  // 4️⃣ Update UI
+  if (!mounted) return;
+  setState(() {
+    product.stock = newStock;
+    _stockControllers[product.id]?.text = newStock.toString();
+  });
+}
+
+  /// Sync queued stock updates with Supabase
   Future<void> _syncWithLoading() async {
     if (!await _isOnline()) return;
 
@@ -209,8 +236,9 @@ class _StockScreenState extends State<StockScreen>
                                       if (!mounted) return;
                                       ScaffoldMessenger.of(context)
                                           .showSnackBar(SnackBar(
-                                        content:
-                                            Text("${product.name} updated"),
+                                        content: Text(
+                                          "${product.name} updated | ${newStock - product.stock > 0 ? 'Added' : 'Subtracted'} ${ (newStock - product.stock).abs() }",
+                                        ),
                                       ));
                                     },
                                   ),

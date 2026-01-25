@@ -285,7 +285,7 @@ class ProductService {
             'qty_changed': entry['qty_changed'],
             'change_type':
                 entry['type']?.toString() ??
-                'adjust', // <-- must match Supabase
+                'sale', // <-- must match Supabase
             'trans_date':
                 entry['trans_date']?.toString() ??
                 DateTime.now().toIso8601String(),
@@ -398,7 +398,8 @@ class ProductService {
     required double retailPrice,
     required int stock,
     bool isPromo = false,
-    int otherQty = 0,
+    int otherQty = 0, required 
+    int byPieces,
   }) async {
     final db = await localDb.database;
 

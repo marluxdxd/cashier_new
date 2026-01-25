@@ -103,7 +103,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           children: [
                             Text('Old Stock: ${entry['old_stock']}'),
                             Text('New Stock: ${entry['new_stock']}'),
-                            Text('Type: ${entry['change_type'] ?? 'adjust'}'),
+                            Text('Type: ${entry['change_type'] ?? 'sale'}'),
                             Text(
                               'Total Sale: ₱${entry['total'] ?? 0}',
                               style: const TextStyle(
@@ -212,7 +212,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           'old_stock': entry['old_stock'],
           'new_stock': entry['new_stock'],
           'qty_changed': entry['qty_changed'],
-          'change_type': entry['change_type']?.toString() ?? 'adjust',
+          'change_type': entry['change_type']?.toString() ?? 'sale',
           'trans_date': entry['trans_date']?.toString() ?? DateTime.now().toIso8601String(),
           'created_at': entry['created_at']?.toString() ?? DateTime.now().toIso8601String(),
           'product_client_uuid': clientUuid,
